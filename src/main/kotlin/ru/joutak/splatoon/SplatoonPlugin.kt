@@ -1,13 +1,17 @@
-package ru.joutak.template
+package ru.joutak.splatoon
 
+import org.bukkit.Bukkit
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
+import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
+import ru.joutak.splatoon.listeners.PlayerUseListener
+import ru.joutak.splatoon.listeners.ProjectileHitListener
 import java.io.File
 
-class EmptyPlugin : JavaPlugin() {
+class SplatoonPlugin : JavaPlugin() {
     companion object {
         @JvmStatic
-        lateinit var instance: EmptyPlugin
+        lateinit var instance: SplatoonPlugin
     }
 
     private var customConfig = YamlConfiguration()
@@ -27,8 +31,9 @@ class EmptyPlugin : JavaPlugin() {
 
         loadConfig()
 
-        // Register commands and events
-
+        Bukkit.getPluginManager().registerEvents(PlayerToggleSneakListener(), this)
+        Bukkit.getPluginManager().registerEvents(PlayerUseListener(), this)
+        Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
     }
 
