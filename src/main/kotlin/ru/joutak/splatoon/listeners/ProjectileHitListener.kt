@@ -1,55 +1,47 @@
 package ru.joutak.splatoon.listeners
 
 import org.bukkit.Material
+import org.bukkit.World
 import org.bukkit.block.Block
-import org.bukkit.block.BlockFace
 import org.bukkit.entity.EntityType
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
+import kotlin.math.floor
+import kotlin.math.ceil
 
 class ProjectileHitListener : Listener {
+
     @EventHandler
-    fun projectileHitEvent(event: ProjectileHitEvent){
+    fun projectileHitEvent(event: ProjectileHitEvent) {
         val entity = event.entity
         val block = event.hitBlock
         val blockface = event.hitBlockFace
+
+        if (block == null || blockface == null || entity.type != EntityType.SNOWBALL) return
+        explosivePaint(1.5, block.getRelative(blockface).location, entity.world)
+    }
+
+    fun explosivePaint(r: Double, location: org.bukkit.Location, world: World) {
         val blocks = mutableListOf<Block>()
-
-        if (block == null || blockface == null) return
-
-        if (entity.type != EntityType.SNOWBALL) return
-        block.type = Material.GREEN_CONCRETE
-
-        if (blockface == BlockFace.EAST || blockface == BlockFace.WEST){
-            blocks.addAll(
-                listOf(
-            entity.world.getBlockAt(block.location.add(0.0, 1.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(0.0, 0.0, 1.0)),
-            entity.world.getBlockAt(block.location.add(0.0, -1.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(0.0, 0.0, -1.0))))
+        for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
+            for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
+                for (z in roundFromZero(location.z - r)..roundFromZero(location.z + r)) {
+                    val b = world.getBlockAt(x, y, z)
+                    if (b.type != Material.AIR && b.location.distance(location) <= r) blocks.add(b)
+                }
+            }
         }
-        if (blockface == BlockFace.DOWN || blockface == BlockFace.UP){
-            blocks.addAll(
-                listOf(
-            entity.world.getBlockAt(block.location.add(1.0, 0.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(0.0, 0.0, 1.0)),
-            entity.world.getBlockAt(block.location.add(-1.0, 0.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(0.0, 0.0, -1.0))))
-        }
-        if (blockface == BlockFace.NORTH || blockface == BlockFace.SOUTH){
-            blocks.addAll(
-                listOf(
-            entity.world.getBlockAt(block.location.add(0.0, 1.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(1.0, 0.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(0.0, -1.0, 0.0)),
-            entity.world.getBlockAt(block.location.add(-1.0, 0.0, 0.0))))
-        }
-
-        for (b in blocks){
-            if (b.getRelative(blockface).type != Material.AIR) continue
+        for (b in blocks) {
             if (b.type != Material.AIR) b.type = Material.GREEN_CONCRETE
         }
+    }
 
+    fun roundFromZero(n: Double): Int {
+        return when {
+            n > 0 -> ceil(n).toInt()
+            n < 0 -> floor(n).toInt()
+            else -> n.toInt()
+        }
     }
 }
