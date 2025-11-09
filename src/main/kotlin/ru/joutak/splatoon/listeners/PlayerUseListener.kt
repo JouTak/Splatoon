@@ -6,15 +6,53 @@ import org.bukkit.entity.EntityType
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerInteractEvent
+import org.bukkit.metadata.FixedMetadataValue
+import org.bukkit.plugin.Plugin
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.NamespacedKey
 import org.bukkit.potion.PotionEffectType
 
-class PlayerUseListener : Listener {
+class PlayerUseListener(val plugin: Plugin) : Listener {
     @EventHandler
-    fun playerUseItemEvent(event: PlayerInteractEvent){
+    fun playerUseItemEvent(event: PlayerInteractEvent) {
         val player = event.player
         if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
-
-        if (player.inventory.itemInMainHand.type == Material.GOLDEN_SHOVEL)
-            player.world.spawnEntity(Location(player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z).add(player.location.direction), EntityType.SNOWBALL).velocity = player.location.direction.multiply(1.4)
+        if (player.inventory.itemInMainHand.type == Material.GOLDEN_SHOVEL && player.inventory.itemInMainHand.itemMeta.persistentDataContainer.has(
+                NamespacedKey(plugin, "splatGun"),
+                PersistentDataType.BOOLEAN
+            )
+        )
+            player.world.spawnEntity(
+                Location(
+                    player.world,
+                    player.eyeLocation.x,
+                    player.eyeLocation.y - 0.1,
+                    player.eyeLocation.z
+                ).add(player.location.direction), EntityType.SNOWBALL
+            ).apply {
+                velocity = player.location.direction.multiply(1.4)
+                setMetadata("paintKey", FixedMetadataValue(plugin, 1))
+                setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+            }
+        if (player.inventory.itemInMainHand.type == Material.GOLDEN_AXE && player.inventory.itemInMainHand.itemMeta.persistentDataContainer.has(
+                NamespacedKey(plugin, "splatBomb"),
+                PersistentDataType.BOOLEAN
+            )
+        ) {
+            player.world.spawnEntity(
+                Location(
+                    player.world,
+                    player.eyeLocation.x,
+                    player.eyeLocation.y - 0.1,
+                    player.eyeLocation.z
+                ).add(player.location.direction), EntityType.SNOWBALL
+            ).apply {
+                velocity = player.location.direction.multiply(1.1)
+                setMetadata("paintKey", FixedMetadataValue(plugin, 1))
+                setMetadata("bombKey", FixedMetadataValue(plugin, 1))
+                setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+            }
+            player.inventory.setItemInMainHand(null)
+        }
     }
 }

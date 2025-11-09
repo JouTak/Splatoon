@@ -28,23 +28,23 @@ class PlayerToggleSneakListener : Listener {
 
         tasks[player.uniqueId] =
             Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
-            for (x in -3..3) {
-                for (z in -3..3) {
-                    if (Location(
-                            player.world,
-                            player.location.x + x.toDouble() / 10,
-                            player.location.y,
-                            player.location.z + z.toDouble() / 10
-                        ).block.getRelative(
-                            BlockFace.DOWN
-                        ).type == Material.GREEN_CONCRETE
-                    ) {
-                        player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 2, 18))
-                        player.addPotionEffect(PotionEffect(PotionEffectType.INVISIBILITY, 2, 1))
+                for (x in -3..3) {
+                    for (z in -3..3) {
+                        if (Location(
+                                player.world,
+                                player.location.x + x.toDouble() / 10,
+                                player.location.y,
+                                player.location.z + z.toDouble() / 10
+                            ).block.getRelative(
+                                BlockFace.DOWN
+                            ).type == Material.GREEN_CONCRETE
+                        ) {
+                            player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 2, 18))
+                            player.addPotionEffect(PotionEffect(PotionEffectType.INVISIBILITY, 2, 1))
+                        }
                     }
                 }
-            }
-        }, 0L, 1).taskId
+            }, 0L, 1).taskId
     }
 }
 

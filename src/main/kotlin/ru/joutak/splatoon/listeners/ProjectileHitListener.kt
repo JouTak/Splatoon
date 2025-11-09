@@ -1,9 +1,12 @@
 package ru.joutak.splatoon.listeners
 
+import org.bukkit.Bukkit.getPlayer
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.EntityType
+import org.bukkit.entity.Player
+import ru.joutak.splatoon.scripts.Stats
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
@@ -16,13 +19,25 @@ class ProjectileHitListener : Listener {
     fun projectileHitEvent(event: ProjectileHitEvent) {
         val entity = event.entity
         val block = event.hitBlock
+        val hitEntity = event.hitEntity
         val blockface = event.hitBlockFace
 
-        if (block == null || blockface == null || entity.type != EntityType.SNOWBALL) return
-        explosivePaint(1.5, block.getRelative(blockface).location, entity.world)
+        if (entity.type != EntityType.SNOWBALL) return
+        val radius = if (entity.hasMetadata("bombKey")) 5.0 else 1.5
+        if (entity.hasMetadata("paintKey")) {
+            val shooter = entity.getMetadata("shooter").firstOrNull()?.asString().toString()
+            if (hitEntity != null && hitEntity is Player) {
+                val snowballDirection = entity.velocity.normalize()
+                hitEntity.velocity = snowballDirection.multiply(1.5)
+                explosivePaint(radius, hitEntity.location, entity.world, shooter)
+            }
+
+            if (block == null || blockface == null) return
+            explosivePaint(radius, block.getRelative(blockface).location, entity.world, shooter)
+        }
     }
 
-    fun explosivePaint(r: Double, location: org.bukkit.Location, world: World) {
+    fun explosivePaint(r: Double, location: org.bukkit.Location, world: World, shooter: String) {
         val blocks = mutableListOf<Block>()
         for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
             for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
@@ -33,7 +48,12 @@ class ProjectileHitListener : Listener {
             }
         }
         for (b in blocks) {
-            if (b.type != Material.AIR) b.type = Material.GREEN_CONCRETE
+            if (b.type != Material.AIR && b.type != Stats.commandColors[Stats.commands[getPlayer(shooter)!!.uniqueId]]) {
+                b.type = Stats.commandColors[Stats.commands[getPlayer(shooter)!!.uniqueId]] ?: Material.WHITE_CONCRETE
+                Stats.paintedPerson[getPlayer(shooter)!!.uniqueId] = (Stats.paintedPerson[getPlayer(shooter)!!.uniqueId] ?: 0) + 1
+                Stats.paintedCommand[Stats.commands[getPlayer(shooter)!!.uniqueId] ?: 0] =
+                    (Stats.paintedCommand[Stats.commands[getPlayer(shooter)!!.uniqueId]] ?: 0) + 1
+            }
         }
     }
 
