@@ -48,11 +48,23 @@ class ProjectileHitListener : Listener {
             }
         }
         for (b in blocks) {
-            if (b.type != Material.AIR && b.type != Stats.commandColors[Stats.commands[getPlayer(shooter)!!.uniqueId]]) {
-                b.type = Stats.commandColors[Stats.commands[getPlayer(shooter)!!.uniqueId]] ?: Material.WHITE_CONCRETE
-                Stats.paintedPerson[getPlayer(shooter)!!.uniqueId] = (Stats.paintedPerson[getPlayer(shooter)!!.uniqueId] ?: 0) + 1
-                Stats.paintedCommand[Stats.commands[getPlayer(shooter)!!.uniqueId] ?: 0] =
-                    (Stats.paintedCommand[Stats.commands[getPlayer(shooter)!!.uniqueId]] ?: 0) + 1
+            if (b.type != Material.AIR && b.type != Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commandColors[Stats.playerGame[getPlayer(
+                    shooter
+                )!!.uniqueId]!!.commands[getPlayer(shooter)!!.uniqueId]]
+            ) {
+                b.type =
+                    Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commandColors[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
+                        shooter
+                    )!!.uniqueId]] ?: Material.WHITE_CONCRETE
+                Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedPerson[getPlayer(shooter)!!.uniqueId] =
+                    (Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedPerson[getPlayer(shooter)!!.uniqueId]
+                        ?: 0) + 1
+                Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedCommand[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
+                    shooter
+                )!!.uniqueId] ?: 0] =
+                    (Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedCommand[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
+                        shooter
+                    )!!.uniqueId]] ?: 0) + 1
             }
         }
     }

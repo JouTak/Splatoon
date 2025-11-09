@@ -18,11 +18,13 @@ repositories {
     maven("https://oss.sonatype.org/content/groups/public/") {
         name = "sonatype"
     }
+    maven("https://repo.onarandombox.com/content/groups/public/")
 }
 
 dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
+    compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
 }
 
 kotlin {
