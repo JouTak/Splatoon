@@ -16,7 +16,6 @@ class SplatoonPlugin : JavaPlugin() {
     }
 
     private var customConfig = YamlConfiguration()
-
     private fun loadConfig() {
         val fx = File(dataFolder, "config.yml")
         if (!fx.exists()) {

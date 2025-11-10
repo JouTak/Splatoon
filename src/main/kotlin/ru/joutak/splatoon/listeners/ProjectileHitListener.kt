@@ -6,10 +6,10 @@ import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
-import ru.joutak.splatoon.scripts.Stats
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
+import ru.joutak.splatoon.scripts.GameManager
 import kotlin.math.floor
 import kotlin.math.ceil
 
@@ -48,23 +48,15 @@ class ProjectileHitListener : Listener {
             }
         }
         for (b in blocks) {
-            if (b.type != Material.AIR && b.type != Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commandColors[Stats.playerGame[getPlayer(
-                    shooter
-                )!!.uniqueId]!!.commands[getPlayer(shooter)!!.uniqueId]]
-            ) {
-                b.type =
-                    Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commandColors[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
-                        shooter
-                    )!!.uniqueId]] ?: Material.WHITE_CONCRETE
-                Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedPerson[getPlayer(shooter)!!.uniqueId] =
-                    (Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedPerson[getPlayer(shooter)!!.uniqueId]
-                        ?: 0) + 1
-                Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedCommand[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
-                    shooter
-                )!!.uniqueId] ?: 0] =
-                    (Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.paintedCommand[Stats.playerGame[getPlayer(shooter)!!.uniqueId]!!.commands[getPlayer(
-                        shooter
-                    )!!.uniqueId]] ?: 0) + 1
+            val shooterId = getPlayer(shooter)!!.uniqueId
+            val shooterGame = GameManager.playerGame[shooterId]!!
+
+            if (b.type != Material.AIR && b.type != shooterGame.commandColors[shooterGame.commands[shooterId]]) {
+                b.type = shooterGame.commandColors[shooterGame.commands[shooterId]] ?: Material.WHITE_CONCRETE
+                shooterGame.paintedPerson[shooterId] =
+                    (shooterGame.paintedPerson[shooterId] ?: 0) + 1
+                shooterGame.paintedCommand[shooterGame.commands[shooterId] ?: 0] =
+                    (shooterGame.paintedCommand[shooterGame.commands[shooterId]] ?: 0) + 1
             }
         }
     }
