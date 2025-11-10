@@ -10,6 +10,7 @@ import org.bukkit.event.player.PlayerToggleSneakEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
 
 class PlayerToggleSneakListener : Listener {
@@ -37,7 +38,7 @@ class PlayerToggleSneakListener : Listener {
                                 player.location.z + z.toDouble() / 10
                             ).block.getRelative(
                                 BlockFace.DOWN
-                            ).type == Material.GREEN_CONCRETE
+                            ).type == GameManager.playerGame[player.uniqueId]!!.commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]
                         ) {
                             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 2, 18))
                             player.addPotionEffect(PotionEffect(PotionEffectType.INVISIBILITY, 2, 1))
