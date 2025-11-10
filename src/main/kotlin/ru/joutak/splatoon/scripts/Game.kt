@@ -32,9 +32,8 @@ class Game(var worldName: String) {
 
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
-
     private var scoreboardUpdateTask: BukkitTask? = null
-    private var isGameRunning = false
+
     private var timeLeft = 0
     private var gameScoreboard: org.bukkit.scoreboard.Scoreboard? = null
     private var objective: org.bukkit.scoreboard.Objective? = null
@@ -42,33 +41,60 @@ class Game(var worldName: String) {
         commands.keys.forEach { uuid ->
             Bukkit.getPlayer(uuid)?.teleport(Bukkit.getWorld(worldName)!!.spawnLocation)
         }
-
-        val item = ItemStack(Material.GOLDEN_SHOVEL, 1)
-        val meta = item.itemMeta
-        meta.displayName(
-            Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF))
-        )
-        meta.persistentDataContainer.set(
-            NamespacedKey(SplatoonPlugin.instance, "splatGun"), PersistentDataType.BOOLEAN, true
-        )
-        item.itemMeta = meta
-        commands.keys.forEach { uuid ->
-            Bukkit.getPlayer(uuid)?.inventory?.addItem(item)
-        }
         startCountdown()
 
 
     }
-    fun endGame(){
+    fun endGame() {
+        gameTimerTask?.cancel()
+        countdownTask?.cancel()
+        scoreboardUpdateTask?.cancel()
+        val winner = determineWinner()
+        showWinnerAnnouncement(winner)
+        playSoundToAllPlayers(
+            Sound.sound(
+                Key.key("ui.toast.challenge_complete"),
+                Sound.Source.MASTER,
+                1.0f,
+                1.0f
+            )
+        )
+        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            commands.keys.forEach { playerId ->
+                val lobbyLocation = Bukkit.getWorlds()[0].spawnLocation
+                val player = getPlayer(playerId)!!
+                player.inventory.clear()
+                player.health = 20.0
+                player.foodLevel = 20
+                player.saturation = 20f
+                player.activePotionEffects.forEach { effect ->
+                    player.removePotionEffect(effect.type)
+                    player.teleport(lobbyLocation)
+                }
+            }
+            GameManager.deleteGame(worldName,this)
+        }, 100L)
 
+    }
+    private fun determineWinner(): Int {
+        var maxScore = -1
+        var winningTeam = 0
+
+        paintedCommand.forEach { (team, score) ->
+            if (score > maxScore) {
+                maxScore = score
+                winningTeam = team
+            }
+        }
+        return winningTeam
     }
 
     private fun startCountdown() {
-        var countdown = 10
+        var countdown = 6
 
         countdownTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             when (countdown) {
-                10 -> {
+                6 -> {
                     showTitleToAllPlayers(
                         Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
                         Component.empty()
@@ -82,6 +108,7 @@ class Game(var worldName: String) {
                         )
                     )
                 }
+
                 3 -> {
                     showTitleToAllPlayers(
                         Component.text("3", NamedTextColor.YELLOW),
@@ -140,12 +167,28 @@ class Game(var worldName: String) {
                             1.0f
                         )
                     )
+                    giveSplatGuns()
                     startMainTimer()
                     countdownTask?.cancel()
                 }
             }
             countdown--
         }, 0L, 20L) // 20 тиков = 1 секунда
+    }
+
+    private fun giveSplatGuns() {
+        val item = ItemStack(Material.GOLDEN_SHOVEL, 1)
+        val meta = item.itemMeta
+        meta.displayName(
+            Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF))
+        )
+        meta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "splatGun"), PersistentDataType.BOOLEAN, true
+        )
+        item.itemMeta = meta
+        commands.keys.forEach { uuid ->
+            Bukkit.getPlayer(uuid)?.inventory?.addItem(item)
+        }
     }
 
     private fun playSoundToAllPlayers(sound: Sound) {
@@ -170,58 +213,80 @@ class Game(var worldName: String) {
         }
     }
 
+    private fun showWinnerAnnouncement(winner: Int) {
+        showTitleToAllPlayers(
+            when (winner) {
+                0 -> Component.text("КРАСНЫЕ ПОБЕДИЛИ!", NamedTextColor.RED)
+                1 -> Component.text("СИНИЕ ПОБЕДИЛИ!", NamedTextColor.BLUE)
+                3 -> Component.text("ЖЕЛТЫЕ ПОБЕДИЛИ!", NamedTextColor.YELLOW)
+                2 -> Component.text("ЗЕЛЕНЫЕ ПОБЕДИЛИ!", NamedTextColor.GREEN)
+                else -> Component.text("НИЧЬЯ!", NamedTextColor.GOLD)
+            },
+            Component.text("Возвращение в лобби через 5 секунд...", NamedTextColor.GRAY)
+        )
+    }
+
     private fun startMainTimer() {
+
         timeLeft = 5 * 60
         createTimerScoreboard()
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             if (timeLeft <= 0) {
                 endGame()
-                return@Runnable
             }
 
-            // Показываем важные уведомления в центре
             when (timeLeft) {
                 60 -> {
                     showTitleToAllPlayers(
                         Component.text("Осталась 1 минута!", NamedTextColor.YELLOW),
                         Component.empty()
                     )
-                    playSoundToAllPlayers(Sound.sound(
-                        Key.key("block.note_block.bell"),
-                        Sound.Source.MASTER,
-                        1.0f,
-                        1.0f
-                    ))
+                    playSoundToAllPlayers(
+                        Sound.sound(
+                            Key.key("block.note_block.bell"),
+                            Sound.Source.MASTER,
+                            1.0f,
+                            1.0f
+                        )
+                    )
                 }
+
                 30 -> {
                     showTitleToAllPlayers(
                         Component.text("30 секунд!", NamedTextColor.GOLD),
                         Component.empty()
                     )
-                    playSoundToAllPlayers(Sound.sound(
-                        Key.key("block.note_block.bell"),
-                        Sound.Source.MASTER,
-                        1.0f,
-                        1.2f
-                    ))
+                    playSoundToAllPlayers(
+                        Sound.sound(
+                            Key.key("block.note_block.bell"),
+                            Sound.Source.MASTER,
+                            1.0f,
+                            1.2f
+                        )
+                    )
                 }
-                10, 9, 8, 7, 6, 5, 4, 3, 2, 1 -> {
+
+                3, 2, 1 -> {
                     showTitleToAllPlayers(
                         Component.text("$timeLeft", NamedTextColor.RED),
                         Component.empty()
                     )
-                    playSoundToAllPlayers(Sound.sound(
-                        Key.key("block.note_block.pling"),
-                        Sound.Source.MASTER,
-                        1.0f,
-                        (1.0f + (10 - timeLeft) * 0.1f)
-                    ))
+                    playSoundToAllPlayers(
+                        Sound.sound(
+                            Key.key("block.note_block.pling"),
+                            Sound.Source.MASTER,
+                            1.0f,
+                            (1.0f + (10 - timeLeft) * 0.1f)
+                        )
+                    )
                 }
             }
 
             timeLeft--
-            updateTimerScoreboard()
         }, 0L, 20L)
+        scoreboardUpdateTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
+            updateTimerScoreboard()
+        }, 0L, 10L)
     }
 
     private fun createTimerScoreboard() {
@@ -230,17 +295,15 @@ class Game(var worldName: String) {
         objective = gameScoreboard?.registerNewObjective(
             "gametimer",
             org.bukkit.scoreboard.Criteria.DUMMY,
-            Component.text("⏰ ТАЙМЕР ИГРЫ", NamedTextColor.GOLD)
+            Component.text("Splatoon", NamedTextColor.GOLD)
         )
 
         objective?.displaySlot = DisplaySlot.SIDEBAR
 
-        // Применяем scoreboard ко всем игрокам
         commands.keys.forEach { playerId ->
             getPlayer(playerId)!!.scoreboard = gameScoreboard!!
         }
 
-        // Первоначальное обновление
         updateTimerScoreboard()
     }
 
@@ -270,14 +333,18 @@ class Game(var worldName: String) {
 
         val timeColorCode = colorCodes[timeColor] ?: "§f"
 
-        objective?.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")?.score = 8
-        objective?.getScore("")?.score = 7
-        objective?.getScore("§fОсталось времени:")?.score = 6
-        objective?.getScore("$timeColorCode$timeString")?.score = 5
-        objective?.getScore("  ")?.score = 4
-        objective?.getScore("§7Режим: §aАКТИВЕН")?.score = 3
-        objective?.getScore("§7Игроков: §b${Bukkit.getOnlinePlayers().size}")?.score = 2
-        objective?.getScore("   ")?.score = 1
+        objective?.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")?.score = 12
+        objective?.getScore("")?.score = 11
+        objective?.getScore("§f§lСЧЕТ КОМАНД:")?.score = 10
+        objective?.getScore("§cКрасная: §f${paintedCommand[0]}")?.score = 9
+        objective?.getScore("§9Синяя: §f${paintedCommand[1]}")?.score = 8
+        objective?.getScore("§eЖелтая: §f${paintedCommand[3]}")?.score = 7
+        objective?.getScore("§aЗеленая: §f${paintedCommand[2]}")?.score = 6
+        objective?.getScore("  ")?.score = 5
+        objective?.getScore("§fОсталось времени:")?.score = 4
+        objective?.getScore("$timeColorCode$timeString")?.score = 3
+        objective?.getScore("   ")?.score = 2
+        objective?.getScore("§7Режим: §aАКТИВЕН")?.score = 1
         objective?.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")?.score = 0
     }
 }

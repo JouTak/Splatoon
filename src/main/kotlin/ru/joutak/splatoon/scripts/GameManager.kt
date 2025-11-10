@@ -7,13 +7,13 @@ import org.bukkit.Difficulty
 import org.bukkit.GameMode
 import org.bukkit.World
 import org.bukkit.scheduler.BukkitTask
+import java.io.File
 import java.util.UUID
 
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
-
+    val arenas: MutableMap<String, World> = mutableMapOf()
     fun createGame(players: List<UUID>) {
-        val arenas: MutableMap<String, World> = mutableMapOf()
         val multiverseCore: MultiverseCore =
             Bukkit.getServer().pluginManager.getPlugin("Multiverse-Core") as MultiverseCore
         val template = Bukkit.getWorld("world")
@@ -32,8 +32,18 @@ object GameManager {
         arenas[worldName] = Bukkit.getWorld(worldName)!!
         val game = Game(worldName)
         players.forEach { player -> playerGame[player] = game }
-        game.commands += players[0] to 0
+        game.commands += players[0] to 2
         game.paintedPerson += players[0] to 0
         game.startGame()
+    }
+    fun deleteGame(worldName: String, game: Game){
+        val multiverseCore: MultiverseCore =
+            Bukkit.getServer().pluginManager.getPlugin("Multiverse-Core") as MultiverseCore
+        multiverseCore.mvWorldManager.deleteWorld(worldName)
+        File(Bukkit.getWorldContainer(), worldName).exists()
+        playerGame.entries.removeAll { entry ->
+            entry.value == game
+        }
+        arenas.remove(worldName)
     }
 }
