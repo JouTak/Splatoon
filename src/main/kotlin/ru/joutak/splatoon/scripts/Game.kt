@@ -344,7 +344,7 @@ class Game(var worldName: String) {
         objective?.getScore("§fОсталось времени:")?.score = 4
         objective?.getScore("$timeColorCode$timeString")?.score = 3
         objective?.getScore("   ")?.score = 2
-        objective?.getScore("§7Режим: §aАКТИВЕН")?.score = 1
+        objective?.getScore("§7   ")?.score = 1
         objective?.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")?.score = 0
     }
 }
