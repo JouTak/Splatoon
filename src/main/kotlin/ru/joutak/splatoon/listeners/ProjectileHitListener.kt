@@ -52,7 +52,7 @@ class ProjectileHitListener : Listener {
             val shooterGame = GameManager.playerGame[shooterId]!!
 
             if (b.type != Material.AIR && b.type != shooterGame.commandColors[shooterGame.commands[shooterId]]) {
-                shooterGame.commandColors.forEach { i, teamMaterial ->  if(b.type == teamMaterial){ shooterGame.paintedCommand[i] = shooterGame.paintedCommand[i]!! - 1 } }
+                shooterGame.commandColors.forEach { (i, teamMaterial) ->  if(b.type == teamMaterial){ shooterGame.paintedCommand[i] = shooterGame.paintedCommand[i]!! - 1 } }
                 b.type = shooterGame.commandColors[shooterGame.commands[shooterId]] ?: Material.WHITE_CONCRETE
                 shooterGame.paintedPerson[shooterId] =
                     (shooterGame.paintedPerson[shooterId] ?: 0) + 1
