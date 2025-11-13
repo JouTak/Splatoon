@@ -45,6 +45,7 @@ class Game(var worldName: String) {
 
 
     }
+
     fun endGame() {
         gameTimerTask?.cancel()
         countdownTask?.cancel()
@@ -59,9 +60,11 @@ class Game(var worldName: String) {
                 1.0f
             )
         )
+        val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { playerId ->
                 val lobbyLocation = Bukkit.getWorlds()[0].spawnLocation
+                getPlayer(playerId)!!.scoreboard = emptyScoreboard
                 val player = getPlayer(playerId)!!
                 player.inventory.clear()
                 player.health = 20.0
@@ -72,10 +75,11 @@ class Game(var worldName: String) {
                     player.teleport(lobbyLocation)
                 }
             }
-            GameManager.deleteGame(worldName,this)
+            GameManager.deleteGame(worldName, this)
         }, 100L)
 
     }
+
     private fun determineWinner(): Int {
         var maxScore = -1
         var winningTeam = 0
@@ -95,10 +99,26 @@ class Game(var worldName: String) {
         countdownTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             when (countdown) {
                 6 -> {
-                    showTitleToAllPlayers(
-                        Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
-                        Component.empty()
-                    )
+                    commands.keys.forEach { playerId ->
+
+                        val colors = mapOf(
+                            0 to Component.text("Ваша команда: Красные!", NamedTextColor.RED),
+                            1 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
+                            2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
+                            3 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
+                        )
+                        val titleObj = Title.title(
+                            Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
+                            colors[commands[playerId]] as Component,
+                            Title.Times.times(
+                                Duration.ofMillis(500),
+                                Duration.ofMillis(2000),
+                                Duration.ofMillis(500)
+                            )
+                        )
+
+                        getPlayer(playerId)!!.showTitle(titleObj)
+                    }
                     playSoundToAllPlayers(
                         Sound.sound(
                             Key.key("block.note_block.pling"),

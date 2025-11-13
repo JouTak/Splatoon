@@ -39,8 +39,7 @@ object GameManager {
         arenas[worldName] = Bukkit.getWorld(worldName)!!
         val game = Game(worldName)
         players.forEach { player -> playerGame[player] = game
-
-            game.commands += player to  Random.nextInt(1, 5)
+            game.commands += player to  Random.nextInt(0, 4)
             game.paintedPerson += player to 0
         }
         game.startGame()
