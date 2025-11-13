@@ -6,6 +6,9 @@ description: 'splatoon'
 authors: ['technosimp']
 contributors: ['technosimp']
 website: ${WEBSITE}
+commands:
+  splatoon:
+    usage: "/splatoon <ник1> <ник2> ..."
 
 depend: []
 libraries:

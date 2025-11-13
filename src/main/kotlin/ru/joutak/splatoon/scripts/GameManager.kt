@@ -7,8 +7,11 @@ import org.bukkit.Difficulty
 import org.bukkit.GameMode
 import org.bukkit.World
 import org.bukkit.scheduler.BukkitTask
+import ru.joutak.splatoon.SplatoonPlugin
 import java.io.File
 import java.util.UUID
+import kotlin.random.Random
+import kotlin.math.min
 
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
@@ -16,7 +19,7 @@ object GameManager {
     fun createGame(players: List<UUID>) {
         val multiverseCore: MultiverseCore =
             Bukkit.getServer().pluginManager.getPlugin("Multiverse-Core") as MultiverseCore
-        val template = Bukkit.getWorld("world")
+        val template = Bukkit.getWorld(SplatoonPlugin.instance.mapName)
         val mvWorld = multiverseCore.mvWorldManager.getMVWorld(template)
         mvWorld.setTime("day")
         mvWorld.setEnableWeather(false)
@@ -27,13 +30,19 @@ object GameManager {
         mvWorld.setAllowAnimalSpawn(true)
         mvWorld.setAllowMonsterSpawn(false)
         mvWorld.allowPortalMaking(AllowedPortalType.NONE)
-        val worldName = "world_${arenas.size + 1}"
+        var key = 1
+        while (arenas.containsKey("${SplatoonPlugin.instance.mapName}_${key}")) {
+            key++
+        }
+        val worldName = "${SplatoonPlugin.instance.mapName}_${key}"
         multiverseCore.mvWorldManager.cloneWorld(template!!.name, worldName)
         arenas[worldName] = Bukkit.getWorld(worldName)!!
         val game = Game(worldName)
-        players.forEach { player -> playerGame[player] = game }
-        game.commands += players[0] to 2
-        game.paintedPerson += players[0] to 0
+        players.forEach { player -> playerGame[player] = game
+
+            game.commands += player to  Random.nextInt(1, 5)
+            game.paintedPerson += player to 0
+        }
         game.startGame()
     }
     fun deleteGame(worldName: String, game: Game){
