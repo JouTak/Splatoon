@@ -8,6 +8,7 @@ import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
 import org.bukkit.Bukkit.getPlayer
+import org.bukkit.GameMode
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
@@ -18,6 +19,7 @@ import ru.joutak.splatoon.SplatoonPlugin
 import java.time.Duration
 import java.util.UUID
 import kotlin.collections.forEach
+import kotlin.random.Random
 
 class Game(var worldName: String) {
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
@@ -32,6 +34,7 @@ class Game(var worldName: String) {
 
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
+    private var boostTimerTask: BukkitTask? = null
     private var scoreboardUpdateTask: BukkitTask? = null
 
     private var timeLeft = 0
@@ -39,7 +42,8 @@ class Game(var worldName: String) {
     private var objective: org.bukkit.scoreboard.Objective? = null
     fun startGame() {
         commands.keys.forEach { uuid ->
-            Bukkit.getPlayer(uuid)?.teleport(Bukkit.getWorld(worldName)!!.spawnLocation)
+            val player =  getPlayer(uuid)!!
+            player.teleport(Bukkit.getWorld(worldName)!!.spawnLocation)
         }
         startCountdown()
 
@@ -189,6 +193,7 @@ class Game(var worldName: String) {
                     )
                     giveSplatGuns()
                     startMainTimer()
+                    startBoostTimer()
                     countdownTask?.cancel()
                 }
             }
@@ -245,7 +250,11 @@ class Game(var worldName: String) {
             Component.text("Возвращение в лобби через 5 секунд...", NamedTextColor.GRAY)
         )
     }
-
+    private fun startBoostTimer() {
+        boostTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
+            giveSplatBomb(Bukkit.getWorld(worldName)!!)
+        }, 0L, 20L * 20 + Random.nextInt(21 * 20))
+    }
     private fun startMainTimer() {
 
         timeLeft = 5 * 60

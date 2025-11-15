@@ -26,6 +26,7 @@ object GameManager {
         mvWorld.setDifficulty(Difficulty.NORMAL)
         mvWorld.setGameMode(GameMode.SURVIVAL)
         mvWorld.setPVPMode(false)
+        mvWorld.gameMode = GameMode.ADVENTURE
         mvWorld.hunger = true
         mvWorld.setAllowAnimalSpawn(true)
         mvWorld.setAllowMonsterSpawn(false)

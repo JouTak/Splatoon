@@ -19,6 +19,7 @@ class SplatoonPlugin : JavaPlugin() {
     }
 
     public var mapName = "";
+    public val boostLocations: MutableList<List<Double>> = mutableListOf()
     private var customConfig = YamlConfiguration()
     private fun loadConfig() {
         val fx = File(dataFolder, "config.yml")
@@ -27,7 +28,25 @@ class SplatoonPlugin : JavaPlugin() {
         }
         val config = config
         mapName = config.getString("map_name")!!
+        val coordList = config.getList("boost_locations") ?: boostLocations
+
+        for (item in coordList) {
+            if (item is List<*>) {
+                if (item.size == 3) {
+                    try {
+                        val x = (item[0] as Number).toDouble()
+                        val y = (item[1] as Number).toDouble()
+                        val z = (item[2] as Number).toDouble()
+
+                        boostLocations.add(listOf(x, y, z))
+                    } catch (e: Exception) {
+                        logger.warning("Invalid coordinate format: $item")
+                    }
+                }
+            }
+        }
     }
+
 
 
     /**
