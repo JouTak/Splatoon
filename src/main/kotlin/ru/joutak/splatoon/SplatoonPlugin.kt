@@ -7,17 +7,18 @@ import org.yaml.snakeyaml.Yaml
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
-import ru.joutak.splatoon.scripts.AddNicksCommand
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
+import ru.joutak.minigames.MiniGamesCore
+import ru.joutak.minigames.domain.GameQueue
+import ru.joutak.splatoon.scripts.GameManager
 
 class SplatoonPlugin : JavaPlugin() {
     companion object {
         @JvmStatic
         lateinit var instance: SplatoonPlugin
     }
-
     public var mapName = "";
     public val boostLocations: MutableList<List<Double>> = mutableListOf()
     private var customConfig = YamlConfiguration()
@@ -56,13 +57,18 @@ class SplatoonPlugin : JavaPlugin() {
         instance = this
 
         loadConfig()
-
+        MiniGamesCore.initialize(this)
         Bukkit.getPluginManager().registerEvents(PlayerToggleSneakListener(), this)
         Bukkit.getPluginManager().registerEvents(PlayerUseListener(this), this)
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
-        getCommand("splatoon")?.setExecutor(AddNicksCommand())
-        getCommand("splatoon")?.tabCompleter = AddNicksCommand()
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
+
+
+        server.scheduler.runTaskTimer(this, Runnable {
+            if (GameQueue.getQueue().size >= 1) {
+                GameManager.createGame()
+            }
+        }, 20, 20)
     }
 
     /**

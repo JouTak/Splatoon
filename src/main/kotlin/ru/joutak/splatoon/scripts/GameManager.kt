@@ -6,17 +6,17 @@ import org.bukkit.Bukkit
 import org.bukkit.Difficulty
 import org.bukkit.GameMode
 import org.bukkit.World
-import org.bukkit.scheduler.BukkitTask
+import ru.joutak.minigames.domain.GameQueue
+import ru.joutak.minigames.util.TeamBalancer
 import ru.joutak.splatoon.SplatoonPlugin
 import java.io.File
 import java.util.UUID
 import kotlin.random.Random
-import kotlin.math.min
 
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
     val arenas: MutableMap<String, World> = mutableMapOf()
-    fun createGame(players: List<UUID>) {
+    fun createGame() {
         val multiverseCore: MultiverseCore =
             Bukkit.getServer().pluginManager.getPlugin("Multiverse-Core") as MultiverseCore
         val template = Bukkit.getWorld(SplatoonPlugin.instance.mapName)
@@ -39,13 +39,22 @@ object GameManager {
         multiverseCore.mvWorldManager.cloneWorld(template!!.name, worldName)
         arenas[worldName] = Bukkit.getWorld(worldName)!!
         val game = Game(worldName)
-        players.forEach { player -> playerGame[player] = game
-            game.commands += player to  Random.nextInt(0, 4)
-            game.paintedPerson += player to 0
+
+        val teams = TeamBalancer.distributePlayers(GameQueue.getQueue(), 4)
+
+        teams.forEach { team ->
+            var commandNum = 0
+            team.members.forEach { player ->
+                playerGame[Bukkit.getPlayer(player.name)!!.uniqueId] = game
+                game.commands += Bukkit.getPlayer(player.name)!!.uniqueId to commandNum
+                game.paintedPerson += Bukkit.getPlayer(player.name)!!.uniqueId to 0
+            }
+            commandNum += 1
         }
         game.startGame()
     }
-    fun deleteGame(worldName: String, game: Game){
+
+    fun deleteGame(worldName: String, game: Game) {
         val multiverseCore: MultiverseCore =
             Bukkit.getServer().pluginManager.getPlugin("Multiverse-Core") as MultiverseCore
         multiverseCore.mvWorldManager.deleteWorld(worldName)
