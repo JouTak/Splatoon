@@ -43,6 +43,7 @@ class Game(var worldName: String) {
     fun startGame() {
         commands.keys.forEach { uuid ->
             val player =  getPlayer(uuid)!!
+            player.inventory.clear()
             player.teleport(Bukkit.getWorld(worldName)!!.spawnLocation)
         }
         startCountdown()
@@ -65,9 +66,13 @@ class Game(var worldName: String) {
             )
         )
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
+
+        //Тут нужно забрать статистику: winner-номер команды победителя 0-красные, 1-синие, 2-зелёные, 3-жёлтые, paintedCommand - колличество блоков, закрашенных каждой командой, paintedPerson - личное колличество закрашенных блоков каждого игрока
+
+
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { playerId ->
-                val lobbyLocation = Bukkit.getWorlds()[0].spawnLocation
+                val lobbyLocation = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
                 getPlayer(playerId)!!.scoreboard = emptyScoreboard
                 val player = getPlayer(playerId)!!
                 player.inventory.clear()
@@ -76,8 +81,9 @@ class Game(var worldName: String) {
                 player.saturation = 20f
                 player.activePotionEffects.forEach { effect ->
                     player.removePotionEffect(effect.type)
-                    player.teleport(lobbyLocation)
                 }
+                player.inventory.clear()
+                player.teleport(lobbyLocation!!.spawnLocation)
             }
             GameManager.deleteGame(worldName, this)
         }, 100L)

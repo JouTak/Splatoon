@@ -1,5 +1,6 @@
 package ru.joutak.splatoon.listeners
 
+import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.entity.EntityType
@@ -47,6 +48,8 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
                     player.eyeLocation.z
                 ).add(player.location.direction), EntityType.SNOWBALL
             ).apply {
+                customName(Component.text("Bomb"))
+                isCustomNameVisible = false
                 velocity = player.location.direction.multiply(1.1)
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("bombKey", FixedMetadataValue(plugin, 1))

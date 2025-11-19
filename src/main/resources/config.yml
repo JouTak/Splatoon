@@ -1,3 +1,20 @@
 map_name: "sp_arena"
 boost_locations:
   - [0,0,0]
+lobby_name: "world"
+
+spartakiad:
+  enabled: false
+  minigame_name: "minigame"
+  attempts: 5
+  team_mode: false
+
+uuid:
+  use_libre_login: false
+
+storage:
+  debounce_millis: 500
+  close_timeout_millis: 5000
+
+teams:
+  players_file: "teams.txt"

@@ -3,15 +3,16 @@ package ru.joutak.splatoon.scripts
 import com.onarandombox.MultiverseCore.enums.AllowedPortalType
 import com.onarandombox.MultiverseCore.MultiverseCore
 import org.bukkit.Bukkit
+import org.bukkit.Bukkit.getWorld
 import org.bukkit.Difficulty
 import org.bukkit.GameMode
+import org.bukkit.GameRule
 import org.bukkit.World
 import ru.joutak.minigames.domain.GameQueue
 import ru.joutak.minigames.util.TeamBalancer
 import ru.joutak.splatoon.SplatoonPlugin
 import java.io.File
 import java.util.UUID
-import kotlin.random.Random
 
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
@@ -23,12 +24,11 @@ object GameManager {
         val mvWorld = multiverseCore.mvWorldManager.getMVWorld(template)
         mvWorld.setTime("day")
         mvWorld.setEnableWeather(false)
-        mvWorld.setDifficulty(Difficulty.NORMAL)
-        mvWorld.setGameMode(GameMode.SURVIVAL)
+        mvWorld.setDifficulty(Difficulty.PEACEFUL)
         mvWorld.setPVPMode(false)
         mvWorld.gameMode = GameMode.ADVENTURE
         mvWorld.hunger = true
-        mvWorld.setAllowAnimalSpawn(true)
+        mvWorld.setAllowAnimalSpawn(false)
         mvWorld.setAllowMonsterSpawn(false)
         mvWorld.allowPortalMaking(AllowedPortalType.NONE)
         var key = 1
@@ -37,6 +37,10 @@ object GameManager {
         }
         val worldName = "${SplatoonPlugin.instance.mapName}_${key}"
         multiverseCore.mvWorldManager.cloneWorld(template!!.name, worldName)
+        val world = getWorld(worldName)!!
+        world.setGameRule(GameRule.FALL_DAMAGE, false)
+        world.setGameRule(GameRule.DROWNING_DAMAGE, false)
+        world.setGameRule(GameRule.FIRE_DAMAGE, false)
         arenas[worldName] = Bukkit.getWorld(worldName)!!
         val game = Game(worldName)
 

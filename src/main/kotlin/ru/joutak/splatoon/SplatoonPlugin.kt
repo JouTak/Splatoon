@@ -20,6 +20,7 @@ class SplatoonPlugin : JavaPlugin() {
         lateinit var instance: SplatoonPlugin
     }
     public var mapName = "";
+    public var lobbyName = "";
     public val boostLocations: MutableList<List<Double>> = mutableListOf()
     private var customConfig = YamlConfiguration()
     private fun loadConfig() {
@@ -29,6 +30,7 @@ class SplatoonPlugin : JavaPlugin() {
         }
         val config = config
         mapName = config.getString("map_name")!!
+        lobbyName = config.getString("lobby_name")!!
         val coordList = config.getList("boost_locations") ?: boostLocations
 
         for (item in coordList) {
