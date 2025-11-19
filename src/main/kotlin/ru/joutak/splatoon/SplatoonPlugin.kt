@@ -48,8 +48,6 @@ class SplatoonPlugin : JavaPlugin() {
         }
     }
 
-
-
     /**
      * Plugin startup logic
      */
@@ -63,12 +61,20 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 
+        var taskId = 0
 
-        server.scheduler.runTaskTimer(this, Runnable {
-            if (GameQueue.getQueue().size >= 1) {
-                GameManager.createGame()
+        taskId = server.scheduler.runTaskTimer(this, object : Runnable {
+            override fun run() {
+
+                if (GameQueue.getQueue().isNotEmpty()) {
+
+                    GameManager.createGame()
+
+                    // Остановка таймера
+                    server.scheduler.cancelTask(taskId)
+                }
             }
-        }, 20, 20)
+        }, 20L, 20L).taskId
     }
 
     /**
