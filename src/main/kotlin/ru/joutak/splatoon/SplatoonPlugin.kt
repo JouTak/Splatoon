@@ -7,18 +7,20 @@ import org.yaml.snakeyaml.Yaml
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
-import ru.joutak.splatoon.scripts.AddNicksCommand
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
+import ru.joutak.minigames.MiniGamesCore
+import ru.joutak.minigames.domain.GameQueue
+import ru.joutak.splatoon.scripts.GameManager
 
 class SplatoonPlugin : JavaPlugin() {
     companion object {
         @JvmStatic
         lateinit var instance: SplatoonPlugin
     }
-
     public var mapName = "";
+    public var lobbyName = "";
     public val boostLocations: MutableList<List<Double>> = mutableListOf()
     private var customConfig = YamlConfiguration()
     private fun loadConfig() {
@@ -28,6 +30,7 @@ class SplatoonPlugin : JavaPlugin() {
         }
         val config = config
         mapName = config.getString("map_name")!!
+        lobbyName = config.getString("lobby_name")!!
         val coordList = config.getList("boost_locations") ?: boostLocations
 
         for (item in coordList) {
@@ -47,8 +50,6 @@ class SplatoonPlugin : JavaPlugin() {
         }
     }
 
-
-
     /**
      * Plugin startup logic
      */
@@ -56,13 +57,26 @@ class SplatoonPlugin : JavaPlugin() {
         instance = this
 
         loadConfig()
-
+        MiniGamesCore.initialize(this)
         Bukkit.getPluginManager().registerEvents(PlayerToggleSneakListener(), this)
         Bukkit.getPluginManager().registerEvents(PlayerUseListener(this), this)
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
-        getCommand("splatoon")?.setExecutor(AddNicksCommand())
-        getCommand("splatoon")?.tabCompleter = AddNicksCommand()
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
+
+        var taskId = 0
+
+        taskId = server.scheduler.runTaskTimer(this, object : Runnable {
+            override fun run() {
+
+                if (GameQueue.getQueue().isNotEmpty()) {
+
+                    GameManager.createGame()
+
+                    // Остановка таймера
+                    server.scheduler.cancelTask(taskId)
+                }
+            }
+        }, 20L, 20L).taskId
     }
 
     /**

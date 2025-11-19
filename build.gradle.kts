@@ -12,6 +12,7 @@ plugins {
 
 repositories {
     mavenCentral()
+
     maven("https://repo.papermc.io/repository/maven-public/") {
         name = "papermc-repo"
     }
@@ -19,19 +20,29 @@ repositories {
         name = "sonatype"
     }
     maven("https://repo.onarandombox.com/content/groups/public/")
+    maven("https://jitpack.io") {
+        name = "jitpack"
+    }
+
+    // === локальные JAR-файлы (/libs) ===
+    flatDir {
+        dirs("libs")
+    }
 }
 
 dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
+
+    implementation(files("libs/MiniGamesAPI-1.0.0.jar"))
 }
 
 kotlin {
     jvmToolchain(
         libs.versions.jdk
             .get()
-            .toInt(),
+            .toInt()
     )
 }
 
@@ -64,11 +75,12 @@ tasks.processResources {
             "VERSION" to project.version,
             "MINECRAFT_VERSION" to minecraftVersion,
             "KOTLIN_VERSION" to libs.versions.kotlin.get(),
-            "WEBSITE" to website,
+            "WEBSITE" to website
         )
 
     inputs.properties(props)
     filteringCharset = "UTF-8"
+
     filesMatching("plugin.yml") {
         expand(props)
     }
@@ -80,9 +92,10 @@ tasks.shadowJar {
     if (System.getenv("TEST_PLUGIN_BUILD") != null) {
         val serverPath = System.getenv("SERVER_PATH")
         if (serverPath != null) {
-            destinationDirectory.set(file("$serverPath\\plugins"))
+            destinationDirectory.set(file("$serverPath/plugins"))
         } else {
             logger.warn("SERVER_PATH property is not set!")
         }
     }
+    relocate("ru.joutak.minigames", "ru.joutak.splatoon.libs.minigames")
 }
