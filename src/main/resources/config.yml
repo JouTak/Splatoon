@@ -3,6 +3,16 @@ boost_locations:
   - [0,0,0]
 lobby_name: "world"
 
+arenas:
+  - id: arena-1
+    world: sp_arena
+    teamCount: 2
+    playersPerTeam: 3
+  - id: arena-2
+    world: sp_arena_2
+    teamCount: 3
+    playersPerTeam: 2
+
 spartakiad:
   enabled: false
   minigame_name: "minigame"
