@@ -1,17 +1,14 @@
 package ru.joutak.splatoon.scripts
 
-import com.onarandombox.MultiverseCore.enums.AllowedPortalType
 import com.onarandombox.MultiverseCore.MultiverseCore
-import org.bukkit.Bukkit
+import com.onarandombox.MultiverseCore.enums.AllowedPortalType
+import org.bukkit.*
 import org.bukkit.Bukkit.getWorld
-import org.bukkit.Difficulty
-import org.bukkit.GameMode
-import org.bukkit.GameRule
-import org.bukkit.World
 import ru.joutak.minigames.domain.GameInstance
+import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.splatoon.SplatoonPlugin
 import java.io.File
-import java.util.UUID
+import java.util.*
 
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
@@ -67,6 +64,10 @@ object GameManager {
         }
 
         game.startGame()
+
+        instance.teams.flatten().forEach { player ->
+            MatchmakingManager.removePlayer(player)
+        }
     }
 
 
