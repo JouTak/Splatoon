@@ -8,15 +8,18 @@ import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
 import org.bukkit.Bukkit.getPlayer
-import org.bukkit.GameMode
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitTask
 import org.bukkit.scoreboard.DisplaySlot
+import ru.joutak.minigames.domain.GameResult
+import ru.joutak.minigames.domain.Player
+import ru.joutak.minigames.storage.GameResultStorage
 import ru.joutak.splatoon.SplatoonPlugin
 import java.time.Duration
+import java.time.LocalDateTime
 import java.util.UUID
 import kotlin.collections.forEach
 import kotlin.random.Random
@@ -40,18 +43,18 @@ class Game(var worldName: String) {
     private var timeLeft = 0
     private var gameScoreboard: org.bukkit.scoreboard.Scoreboard? = null
     private var objective: org.bukkit.scoreboard.Objective? = null
-    fun startGame() {
+    fun startGame(worldName: String) {
         commands.keys.forEach { uuid ->
             val player =  getPlayer(uuid)!!
             player.inventory.clear()
-            player.teleport(Bukkit.getWorld(worldName)!!.spawnLocation)
+            player.teleport(Bukkit.getWorld(this.worldName)!!.spawnLocation)
         }
-        startCountdown()
+        startCountdown(worldName)
 
 
     }
 
-    fun endGame() {
+    fun endGame(worldName: String) {
         gameTimerTask?.cancel()
         countdownTask?.cancel()
         scoreboardUpdateTask?.cancel()
@@ -67,9 +70,31 @@ class Game(var worldName: String) {
         )
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
 
-        //Тут нужно забрать статистику: winner-номер команды победителя 0-красные, 1-синие, 2-зелёные, 3-жёлтые, paintedCommand - колличество блоков, закрашенных каждой командой, paintedPerson - личное колличество закрашенных блоков каждого игрока
+        val participantsList = mutableListOf<Player>()
+        val winnersList = mutableListOf<Player>()
 
+        commands.keys.forEach { uuid ->
+            val player = Bukkit.getPlayer(uuid)
+            if (player != null) {
+                val participant = Player(
+                    name = player.name
+                )
+                participantsList.add(participant)
 
+                if (commands[uuid] == winner) {
+                    winnersList.add(participant)
+                }
+            }
+        }
+        val result = GameResult(
+            gameUuid = UUID.randomUUID(),
+            gameName = worldName,
+            participants = participantsList,
+            winners = winnersList,
+            dateTime = LocalDateTime.now(),
+            results = paintedPerson.toMap()
+        )
+        GameResultStorage.save(result)
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { playerId ->
                 val lobbyLocation = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
@@ -85,7 +110,7 @@ class Game(var worldName: String) {
                 player.inventory.clear()
                 player.teleport(lobbyLocation!!.spawnLocation)
             }
-            GameManager.deleteGame(worldName, this)
+            GameManager.deleteGame(this.worldName, this)
         }, 100L)
 
     }
@@ -103,7 +128,7 @@ class Game(var worldName: String) {
         return winningTeam
     }
 
-    private fun startCountdown() {
+    private fun startCountdown(worldName: String) {
         var countdown = 6
 
         countdownTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
@@ -198,7 +223,7 @@ class Game(var worldName: String) {
                         )
                     )
                     giveSplatGuns()
-                    startMainTimer()
+                    startMainTimer(worldName)
                     startBoostTimer()
                     countdownTask?.cancel()
                 }
@@ -261,13 +286,13 @@ class Game(var worldName: String) {
             giveSplatBomb(Bukkit.getWorld(worldName)!!)
         }, 0L, 20L * 20 + Random.nextInt(21 * 20))
     }
-    private fun startMainTimer() {
+    private fun startMainTimer(worldName: String) {
 
         timeLeft = 5 * 60
         createTimerScoreboard()
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             if (timeLeft <= 0) {
-                endGame()
+                endGame(worldName)
             }
 
             when (timeLeft) {

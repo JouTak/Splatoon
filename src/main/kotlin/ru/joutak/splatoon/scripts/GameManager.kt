@@ -63,7 +63,7 @@ object GameManager {
             }
         }
 
-        game.startGame()
+        game.startGame(worldName)
 
         instance.teams.flatten().forEach { player ->
             MatchmakingManager.removePlayer(player)
