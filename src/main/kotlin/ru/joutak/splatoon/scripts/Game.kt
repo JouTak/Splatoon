@@ -30,7 +30,7 @@ class Game(var worldName: String) {
         2 to Material.GREEN_CONCRETE,
         3 to Material.YELLOW_CONCRETE
     )
-    var commands: Map<UUID, Int> = mutableMapOf()
+    var commands: MutableMap<UUID, Int> = mutableMapOf()
 
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
