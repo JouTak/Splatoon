@@ -23,7 +23,7 @@ repositories {
     maven("https://jitpack.io") {
         name = "jitpack"
     }
-    maven("https://maven.joutak.ru/releases") // ИСПРАВЛЕНО: убрал # и путь к артефакту
+    maven("https://maven.joutak.ru/snapshots") // ИСПРАВЛЕНО: убрал # и путь к артефакту
 }
 
 dependencies {
@@ -32,7 +32,7 @@ dependencies {
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
 
 
-    implementation("ru.joutak:minigamesapi:1.0.0") {
+    implementation("ru.joutak:minigamesapi:1.0.0-46") {
         artifact { classifier = "all" }
     }
 }

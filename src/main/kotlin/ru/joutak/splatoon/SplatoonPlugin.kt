@@ -83,6 +83,7 @@ class SplatoonPlugin : JavaPlugin() {
         taskId = server.scheduler.runTaskTimer(this, Runnable {
             val instance = MatchmakingManager.pollReady()
             if (instance != null) {
+                logger.info("Команды собрались!")
                 GameManager.createGame(instance)
                 server.scheduler.cancelTask(taskId)
             }
