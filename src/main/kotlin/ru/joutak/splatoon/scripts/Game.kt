@@ -278,7 +278,7 @@ class Game(var worldName: String) {
         )
 
         commands.keys.forEach { playerId ->
-            getPlayer(playerId)!!.showTitle(titleObj)
+            getPlayer(playerId)?.showTitle(titleObj)
         }
     }
 
