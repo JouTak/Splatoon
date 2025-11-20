@@ -64,14 +64,18 @@ object GameManager {
         }
 
         game.startGame(worldName)
-
-        instance.teams.flatten().forEach { player ->
-            MatchmakingManager.removePlayer(player)
-        }
     }
 
 
     fun deleteGame(worldName: String, game: Game) {
+        game.commands.keys.forEach { uuid ->
+            val player = Bukkit.getPlayer(uuid)
+
+            if (player != null) {
+                MatchmakingManager.removePlayer(player)
+            }
+        }
+
         val multiverseCore =
             Bukkit.getPluginManager().getPlugin("Multiverse-Core") as MultiverseCore
 

@@ -55,9 +55,12 @@ class Game(var worldName: String) {
     }
 
     fun endGame(worldName: String) {
+
         gameTimerTask?.cancel()
         countdownTask?.cancel()
         scoreboardUpdateTask?.cancel()
+        boostTimerTask?.cancel()
+
         val winner = determineWinner()
         showWinnerAnnouncement(winner)
         playSoundToAllPlayers(
@@ -95,24 +98,34 @@ class Game(var worldName: String) {
             results = paintedPerson.toMap()
         )
         GameResultStorage.save(result)
+
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            commands.keys.forEach { playerId ->
-                val lobbyLocation = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
-                getPlayer(playerId)!!.scoreboard = emptyScoreboard
-                val player = getPlayer(playerId)!!
-                player.inventory.clear()
-                player.health = 20.0
-                player.foodLevel = 20
-                player.saturation = 20f
-                player.activePotionEffects.forEach { effect ->
-                    player.removePotionEffect(effect.type)
-                }
-                player.inventory.clear()
-                player.teleport(lobbyLocation!!.spawnLocation)
+            val lobbyLocation = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
+
+            if (lobbyLocation == null) {
+                SplatoonPlugin.instance.logger.severe("Не удалось найти мир лобби: ${SplatoonPlugin.instance.lobbyName}. Удаление игры остановлено.")
+                GameManager.deleteGame(this.worldName, this) // Удаляем хотя бы мир игры
+                return@Runnable
             }
+
+            commands.keys.forEach { playerId ->
+                val player = getPlayer(playerId)
+                if (player != null) {
+                    player.scoreboard = emptyScoreboard
+                    player.inventory.clear()
+                    player.health = 20.0
+                    player.foodLevel = 20
+                    player.saturation = 20f
+                    player.activePotionEffects.forEach { effect ->
+                        player.removePotionEffect(effect.type)
+                    }
+                    player.inventory.clear()
+                    player.teleport(lobbyLocation.spawnLocation)
+                }
+            }
+
             GameManager.deleteGame(this.worldName, this)
         }, 100L)
-
     }
 
     private fun determineWinner(): Int {

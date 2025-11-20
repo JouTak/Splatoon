@@ -85,7 +85,6 @@ class SplatoonPlugin : JavaPlugin() {
             if (instance != null) {
                 logger.info("Команды собрались!")
                 GameManager.createGame(instance)
-                server.scheduler.cancelTask(taskId)
             }
         }, 20L, 20L).taskId
     }
