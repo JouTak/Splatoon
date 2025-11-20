@@ -45,9 +45,11 @@ class Game(var worldName: String) {
     private var objective: org.bukkit.scoreboard.Objective? = null
     fun startGame(worldName: String) {
         commands.keys.forEach { uuid ->
-            val player =  getPlayer(uuid)!!
-            player.inventory.clear()
-            player.teleport(Bukkit.getWorld(this.worldName)!!.spawnLocation)
+            val player =  getPlayer(uuid)
+            if (player != null) {
+                player.inventory.clear()
+                player.teleport(Bukkit.getWorld(this.worldName)!!.spawnLocation)
+            }
         }
         startCountdown(worldName)
 
@@ -110,15 +112,18 @@ class Game(var worldName: String) {
 
             commands.keys.forEach { playerId ->
                 val player = getPlayer(playerId)
+
                 if (player != null) {
                     player.scoreboard = emptyScoreboard
                     player.inventory.clear()
                     player.health = 20.0
                     player.foodLevel = 20
+
                     player.saturation = 20f
                     player.activePotionEffects.forEach { effect ->
                         player.removePotionEffect(effect.type)
                     }
+
                     player.inventory.clear()
                     player.teleport(lobbyLocation.spawnLocation)
                 }
@@ -130,6 +135,7 @@ class Game(var worldName: String) {
 
     private fun determineWinner(): Int {
         var maxScore = -1
+
         var winningTeam = 0
 
         paintedCommand.forEach { (team, score) ->
@@ -139,6 +145,7 @@ class Game(var worldName: String) {
             }
         }
         return winningTeam
+
     }
 
     private fun startCountdown(worldName: String) {
@@ -149,100 +156,122 @@ class Game(var worldName: String) {
                 6 -> {
                     commands.keys.forEach { playerId ->
 
+
                         val colors = mapOf(
                             0 to Component.text("Ваша команда: Красные!", NamedTextColor.RED),
                             1 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
+
                             2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
                             3 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
                         )
                         val titleObj = Title.title(
+
                             Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
                             colors[commands[playerId]] as Component,
                             Title.Times.times(
+
                                 Duration.ofMillis(500),
                                 Duration.ofMillis(2000),
                                 Duration.ofMillis(500)
+
                             )
                         )
 
-                        getPlayer(playerId)!!.showTitle(titleObj)
+                        getPlayer(playerId)?.showTitle(titleObj)
                     }
                     playSoundToAllPlayers(
+
                         Sound.sound(
                             Key.key("block.note_block.pling"),
                             Sound.Source.MASTER,
+
                             1.0f,
                             1.0f
                         )
                     )
                 }
 
+
                 3 -> {
                     showTitleToAllPlayers(
                         Component.text("3", NamedTextColor.YELLOW),
                         Component.empty()
+
                     )
                     playSoundToAllPlayers(
                         Sound.sound(
                             Key.key("block.note_block.pling"),
+
                             Sound.Source.MASTER,
                             1.0f,
                             1.0f
                         )
+
                     )
                 }
 
                 2 -> {
                     showTitleToAllPlayers(
                         Component.text("2", NamedTextColor.GOLD),
+
                         Component.empty()
                     )
                     playSoundToAllPlayers(
                         Sound.sound(
                             Key.key("block.note_block.pling"),
+
                             Sound.Source.MASTER,
                             1.0f,
                             1.2f
+
                         )
                     )
                 }
 
                 1 -> {
                     showTitleToAllPlayers(
+
                         Component.text("1", NamedTextColor.RED),
                         Component.empty()
                     )
                     playSoundToAllPlayers(
                         Sound.sound(
+
                             Key.key("block.note_block.pling"),
                             Sound.Source.MASTER,
                             1.0f,
+
                             1.4f
                         )
                     )
                 }
 
                 0 -> {
+
                     showTitleToAllPlayers(
                         Component.text("СТАРТ!", NamedTextColor.GREEN),
                         Component.empty()
                     )
                     playSoundToAllPlayers(
+
                         Sound.sound(
                             Key.key("entity.player.levelup"),
                             Sound.Source.MASTER,
                             1.0f,
+
                             1.0f
                         )
                     )
                     giveSplatGuns()
+
                     startMainTimer(worldName)
                     startBoostTimer()
                     countdownTask?.cancel()
                 }
             }
             countdown--
-        }, 0L, 20L) // 20 тиков = 1 секунда
+        }, 0L,
+            20L) // 20 тиков = 1 секунда
     }
 
     private fun giveSplatGuns() {
@@ -254,6 +283,7 @@ class Game(var worldName: String) {
         meta.persistentDataContainer.set(
             NamespacedKey(SplatoonPlugin.instance, "splatGun"), PersistentDataType.BOOLEAN, true
         )
+
         item.itemMeta = meta
         commands.keys.forEach { uuid ->
             Bukkit.getPlayer(uuid)?.inventory?.addItem(item)
@@ -262,11 +292,12 @@ class Game(var worldName: String) {
 
     private fun playSoundToAllPlayers(sound: Sound) {
         commands.keys.forEach { playerId ->
-            getPlayer(playerId)!!.playSound(sound)
+            getPlayer(playerId)?.playSound(sound)
         }
     }
 
     private fun showTitleToAllPlayers(title: Component, subtitle: Component) {
+
         val titleObj = Title.title(
             title,
             subtitle,
@@ -274,6 +305,7 @@ class Game(var worldName: String) {
                 Duration.ofMillis(500),
                 Duration.ofMillis(2000),
                 Duration.ofMillis(500)
+
             )
         )
 
@@ -286,11 +318,13 @@ class Game(var worldName: String) {
         showTitleToAllPlayers(
             when (winner) {
                 0 -> Component.text("КРАСНЫЕ ПОБЕДИЛИ!", NamedTextColor.RED)
+
                 1 -> Component.text("СИНИЕ ПОБЕДИЛИ!", NamedTextColor.BLUE)
                 3 -> Component.text("ЖЕЛТЫЕ ПОБЕДИЛИ!", NamedTextColor.YELLOW)
                 2 -> Component.text("ЗЕЛЕНЫЕ ПОБЕДИЛИ!", NamedTextColor.GREEN)
                 else -> Component.text("НИЧЬЯ!", NamedTextColor.GOLD)
             },
+
             Component.text("Возвращение в лобби через 5 секунд...", NamedTextColor.GRAY)
         )
     }
@@ -303,6 +337,7 @@ class Game(var worldName: String) {
 
         timeLeft = 5 * 60
         createTimerScoreboard()
+
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             if (timeLeft <= 0) {
                 endGame(worldName)
@@ -310,46 +345,56 @@ class Game(var worldName: String) {
 
             when (timeLeft) {
                 60 -> {
+
                     showTitleToAllPlayers(
                         Component.text("Осталась 1 минута!", NamedTextColor.YELLOW),
                         Component.empty()
                     )
                     playSoundToAllPlayers(
+
                         Sound.sound(
                             Key.key("block.note_block.bell"),
                             Sound.Source.MASTER,
+
                             1.0f,
                             1.0f
                         )
                     )
                 }
 
+
                 30 -> {
                     showTitleToAllPlayers(
                         Component.text("30 секунд!", NamedTextColor.GOLD),
                         Component.empty()
+
                     )
                     playSoundToAllPlayers(
                         Sound.sound(
                             Key.key("block.note_block.bell"),
+
                             Sound.Source.MASTER,
                             1.0f,
                             1.2f
                         )
+
                     )
                 }
 
                 3, 2, 1 -> {
                     showTitleToAllPlayers(
                         Component.text("$timeLeft", NamedTextColor.RED),
+
                         Component.empty()
                     )
                     playSoundToAllPlayers(
                         Sound.sound(
                             Key.key("block.note_block.pling"),
+
                             Sound.Source.MASTER,
                             1.0f,
                             (1.0f + (10 - timeLeft) * 0.1f)
+
                         )
                     )
                 }
@@ -358,6 +403,7 @@ class Game(var worldName: String) {
             timeLeft--
         }, 0L, 20L)
         scoreboardUpdateTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
+
             updateTimerScoreboard()
         }, 0L, 10L)
     }
@@ -374,7 +420,7 @@ class Game(var worldName: String) {
         objective?.displaySlot = DisplaySlot.SIDEBAR
 
         commands.keys.forEach { playerId ->
-            getPlayer(playerId)!!.scoreboard = gameScoreboard!!
+            getPlayer(playerId)?.scoreboard = gameScoreboard!!
         }
 
         updateTimerScoreboard()
@@ -387,7 +433,8 @@ class Game(var worldName: String) {
 
         val timeColor = when {
             timeLeft <= 30 -> NamedTextColor.RED
-            timeLeft <= 60 -> NamedTextColor.YELLOW
+            timeLeft <= 60 ->
+                NamedTextColor.YELLOW
             else -> NamedTextColor.GREEN
         }
 
@@ -397,6 +444,7 @@ class Game(var worldName: String) {
         val colorCodes = mapOf(
             NamedTextColor.RED to "§c",
             NamedTextColor.YELLOW to "§e",
+
             NamedTextColor.GREEN to "§a",
             NamedTextColor.GOLD to "§6",
             NamedTextColor.WHITE to "§f",
