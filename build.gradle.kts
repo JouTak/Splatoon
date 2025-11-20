@@ -23,19 +23,14 @@ repositories {
     maven("https://jitpack.io") {
         name = "jitpack"
     }
-
-    // === локальные JAR-файлы (/libs) ===
-    flatDir {
-        dirs("libs")
-    }
+    maven("https://maven.joutak.ru/releases") // ИСПРАВЛЕНО: убрал # и путь к артефакту
 }
 
 dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
-
-    implementation(files("libs/MiniGamesAPI-1.0.0.jar"))
+    implementation("ru.joutak:minigamesapi:1.0.0")
 }
 
 kotlin {
@@ -97,5 +92,5 @@ tasks.shadowJar {
             logger.warn("SERVER_PATH property is not set!")
         }
     }
-    relocate("ru.joutak.minigames", "ru.joutak.splatoon.libs.minigames")
 }
+// Уберите лишнюю закрывающую скобку здесь
