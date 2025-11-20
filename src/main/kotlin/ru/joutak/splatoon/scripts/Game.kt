@@ -88,7 +88,7 @@ class Game(var worldName: String) {
         }
         val result = GameResult(
             gameUuid = UUID.randomUUID(),
-            gameName = worldName,
+            gameName = "Splatoon",
             participants = participantsList,
             winners = winnersList,
             dateTime = LocalDateTime.now(),
