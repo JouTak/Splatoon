@@ -30,7 +30,11 @@ dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
-    implementation("ru.joutak:minigamesapi:1.0.0")
+
+
+    implementation("ru.joutak:minigamesapi:1.0.0") {
+        artifact { classifier = "all" }
+    }
 }
 
 kotlin {
