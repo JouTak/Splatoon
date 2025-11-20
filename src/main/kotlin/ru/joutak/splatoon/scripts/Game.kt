@@ -26,9 +26,9 @@ class Game(var worldName: String) {
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
     val commandColors: Map<Int, Material> = mapOf(
         0 to Material.RED_CONCRETE,
-        1 to Material.BLUE_CONCRETE,
+        3 to Material.BLUE_CONCRETE,
         2 to Material.GREEN_CONCRETE,
-        3 to Material.YELLOW_CONCRETE
+        1 to Material.YELLOW_CONCRETE
     )
     var commands: Map<UUID, Int> = mutableMapOf()
 
@@ -113,9 +113,9 @@ class Game(var worldName: String) {
 
                         val colors = mapOf(
                             0 to Component.text("Ваша команда: Красные!", NamedTextColor.RED),
-                            1 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
+                            3 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
                             2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
-                            3 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
+                            1 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
                         )
                         val titleObj = Title.title(
                             Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
@@ -248,8 +248,8 @@ class Game(var worldName: String) {
         showTitleToAllPlayers(
             when (winner) {
                 0 -> Component.text("КРАСНЫЕ ПОБЕДИЛИ!", NamedTextColor.RED)
-                1 -> Component.text("СИНИЕ ПОБЕДИЛИ!", NamedTextColor.BLUE)
-                3 -> Component.text("ЖЕЛТЫЕ ПОБЕДИЛИ!", NamedTextColor.YELLOW)
+                3 -> Component.text("СИНИЕ ПОБЕДИЛИ!", NamedTextColor.BLUE)
+                1 -> Component.text("ЖЕЛТЫЕ ПОБЕДИЛИ!", NamedTextColor.YELLOW)
                 2 -> Component.text("ЗЕЛЕНЫЕ ПОБЕДИЛИ!", NamedTextColor.GREEN)
                 else -> Component.text("НИЧЬЯ!", NamedTextColor.GOLD)
             },
@@ -372,8 +372,8 @@ class Game(var worldName: String) {
         objective?.getScore("")?.score = 11
         objective?.getScore("§f§lСЧЕТ КОМАНД:")?.score = 10
         objective?.getScore("§cКрасная: §f${paintedCommand[0]}")?.score = 9
-        objective?.getScore("§9Синяя: §f${paintedCommand[1]}")?.score = 8
-        objective?.getScore("§eЖелтая: §f${paintedCommand[3]}")?.score = 7
+        objective?.getScore("§9Синяя: §f${paintedCommand[3]}")?.score = 8
+        objective?.getScore("§eЖелтая: §f${paintedCommand[1]}")?.score = 7
         objective?.getScore("§aЗеленая: §f${paintedCommand[2]}")?.score = 6
         objective?.getScore("  ")?.score = 5
         objective?.getScore("§fОсталось времени:")?.score = 4
@@ -381,5 +381,9 @@ class Game(var worldName: String) {
         objective?.getScore("   ")?.score = 2
         objective?.getScore("§7   ")?.score = 1
         objective?.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬")?.score = 0
+
+        commands.keys.forEach { uuid ->
+            getPlayer(uuid)?.scoreboard=gameScoreboard!!
+        }
     }
 }
