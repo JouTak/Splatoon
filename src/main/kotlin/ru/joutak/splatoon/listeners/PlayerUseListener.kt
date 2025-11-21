@@ -13,10 +13,17 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.NamespacedKey
 import org.bukkit.event.block.Action
 import org.bukkit.potion.PotionEffectType
+import ru.joutak.splatoon.scripts.GameManager
 
 class PlayerUseListener(val plugin: Plugin) : Listener {
     @EventHandler
     fun playerUseItemEvent(event: PlayerInteractEvent) {
+        val commandColors: Map<Int, String> = mapOf(
+            0 to "Red",
+            3 to "Blue",
+            2 to "Green",
+            1 to "Yellow"
+        )
         val player = event.player
         val action = event.action
         if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
@@ -29,6 +36,8 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
             ).add(player.location.direction), EntityType.SNOWBALL
         ).apply {
             velocity = player.location.direction.multiply(1.4)
+            customName(Component.text(commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]!!))
+            isCustomNameVisible = false
             setMetadata("paintKey", FixedMetadataValue(plugin, 1))
             setMetadata("shooter", FixedMetadataValue(plugin, player.name))
         }
