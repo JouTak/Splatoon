@@ -22,7 +22,7 @@ fun giveSplatBomb(world: World) {
     meta.displayName(
         Component.text("Сплат-бомба").color(TextColor.color(0xFF55FF))
     )
-    meta.persistentDataContainer.set(NamespacedKey(plugin, "splatBomb"), PersistentDataType.BOOLEAN, true)
+    meta.persistentDataContainer.set(NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN, true)
     item.itemMeta = meta
     val loc = SplatoonPlugin.instance.boostLocations.random()
     Location(world, loc[0], loc[1], loc[2]).world.dropItem(Location(world, loc[0], loc[1], loc[2]), item)

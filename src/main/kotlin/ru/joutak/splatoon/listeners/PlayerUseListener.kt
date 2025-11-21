@@ -33,7 +33,7 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
             setMetadata("shooter", FixedMetadataValue(plugin, player.name))
         }
         if (player.inventory.itemInMainHand.type == Material.GOLDEN_AXE && player.inventory.itemInMainHand.itemMeta.persistentDataContainer.has(
-                NamespacedKey(plugin, "splatBomb"), PersistentDataType.BOOLEAN
+                NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN
             )
         ) {
             player.world.spawnEntity(
