@@ -37,7 +37,7 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
         ).apply {
             velocity = player.location.direction.multiply(1.4)
             customName(Component.text(commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]!!))
-            isCustomNameVisible = false
+            isCustomNameVisible = true
             setMetadata("paintKey", FixedMetadataValue(plugin, 1))
             setMetadata("shooter", FixedMetadataValue(plugin, player.name))
         }

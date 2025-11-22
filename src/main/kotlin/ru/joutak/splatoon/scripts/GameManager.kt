@@ -60,6 +60,7 @@ object GameManager {
                 playerGame[bukkitPlayer.uniqueId] = game
                 game.commands[bukkitPlayer.uniqueId] = teamIndex
                 game.paintedPerson[bukkitPlayer.uniqueId] = 0
+                instance.removePlayer(bukkitPlayer)
             }
         }
 

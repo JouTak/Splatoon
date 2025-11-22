@@ -458,9 +458,9 @@ class Game(var worldName: String) {
         objective?.getScore("")?.score = 11
         objective?.getScore("§f§lСЧЕТ КОМАНД:")?.score = 10
         objective?.getScore("§cКрасная: §f${paintedCommand[0]}")?.score = 9
-        objective?.getScore("§9Синяя: §f${paintedCommand[3]}")?.score = 8
-        objective?.getScore("§eЖелтая: §f${paintedCommand[1]}")?.score = 7
-        objective?.getScore("§aЗеленая: §f${paintedCommand[2]}")?.score = 6
+        objective?.getScore("§eЖелтая: §f${paintedCommand[1]}")?.score = 8
+        objective?.getScore("§aЗеленая: §f${paintedCommand[2]}")?.score = 7
+        objective?.getScore("§9Синяя: §f${paintedCommand[3]}")?.score = 6
         objective?.getScore("  ")?.score = 5
         objective?.getScore("§fОсталось времени:")?.score = 4
         objective?.getScore("$timeColorCode$timeString")?.score = 3
