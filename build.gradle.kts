@@ -31,7 +31,7 @@ dependencies {
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
 
-    implementation("ru.joutak:minigamesapi:1.0.0-53")
+    implementation("ru.joutak:minigamesapi:1.0.0-54")
 }
 
 kotlin {
