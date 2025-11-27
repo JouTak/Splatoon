@@ -12,6 +12,7 @@ import org.bukkit.plugin.Plugin
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.NamespacedKey
 import org.bukkit.event.block.Action
+import org.bukkit.inventory.ItemStack
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.scripts.GameManager
 
@@ -36,7 +37,14 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
             ).add(player.location.direction), EntityType.SNOWBALL
         ).apply {
             velocity = player.location.direction.multiply(1.4)
-            customName(Component.text(commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]!!))
+            setMetadata("itemData", FixedMetadataValue(plugin,
+                mapOf(
+                    "id" to "minecraft:snowball",
+                    "components" to mapOf(
+                        "custom_name" to commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]!!
+                    )
+                )
+            ))
             isCustomNameVisible = true
             setMetadata("paintKey", FixedMetadataValue(plugin, 1))
             setMetadata("shooter", FixedMetadataValue(plugin, player.name))
@@ -50,8 +58,14 @@ class PlayerUseListener(val plugin: Plugin) : Listener {
                     player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
                 ).add(player.location.direction), EntityType.SNOWBALL
             ).apply {
-                customName(Component.text("Bomb"))
-                isCustomNameVisible = false
+                setMetadata("itemData", FixedMetadataValue(plugin,
+                    mapOf(
+                        "id" to "minecraft:snowball",
+                        "components" to mapOf(
+                            "custom_name" to "Bomb"
+                        )
+                    )
+                ))
                 velocity = player.location.direction.multiply(1.1)
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("bombKey", FixedMetadataValue(plugin, 1))
