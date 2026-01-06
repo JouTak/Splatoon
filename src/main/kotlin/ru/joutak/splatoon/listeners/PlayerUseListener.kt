@@ -24,14 +24,28 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
         val player = event.player
         val action = event.action
 
-        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
 
         val itemInHand = player.inventory.itemInMainHand
         if (itemInHand.type == Material.AIR) return
 
         val meta = itemInHand.itemMeta ?: return
         val pdc = meta.persistentDataContainer
+
+        val game = GameManager.playerGame[player.uniqueId]
+
+        if (game != null && pdc.has(NamespacedKey(plugin, "Jammer"), PersistentDataType.BOOLEAN)) {
+            game.activateJammer(player.uniqueId, 15_000)
+            val amount = itemInHand.amount
+            if (amount <= 1) {
+                player.inventory.setItemInMainHand(null)
+            } else {
+                itemInHand.amount = amount - 1
+                player.inventory.setItemInMainHand(itemInHand)
+            }
+            return
+        }
 
         val commandColors = mapOf(
             0 to "Red",
@@ -44,10 +58,11 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN
             )
         ) {
-            val game = GameManager.playerGame[player.uniqueId] ?: return
-            val teamId = game.commands[player.uniqueId] ?: return
-            val colorName = commandColors[teamId] ?: return
+            if (game == null) return
+            val baseTeam = game.commands[player.uniqueId] ?: return
+            val paintTeam = game.getAmmoTeam(player.uniqueId) ?: baseTeam
 
+            val colorName = commandColors[paintTeam] ?: return
             val projectileItem = createProjectileItem(colorName)
 
             player.world.spawn(
@@ -61,7 +76,8 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
-                setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+                setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+                setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
             }
             return
         }
@@ -70,7 +86,12 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN
             )
         ) {
-            val projectileItem = createProjectileItem("Bomb")
+            if (game == null) return
+            val baseTeam = game.commands[player.uniqueId] ?: return
+            val paintTeam = game.getAmmoTeam(player.uniqueId) ?: baseTeam
+
+            val colorName = commandColors[paintTeam] ?: "Bomb"
+            val projectileItem = createProjectileItem(colorName)
 
             player.world.spawn(
                 Location(
@@ -84,7 +105,8 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("bombKey", FixedMetadataValue(plugin, 1))
-                setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+                setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+                setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
             }
 
             player.inventory.setItemInMainHand(null)

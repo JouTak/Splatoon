@@ -7,9 +7,9 @@ import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
-import org.bukkit.Bukkit.getPlayer
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.World
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
@@ -30,6 +30,8 @@ import kotlin.random.Random
 class Game(var worldName: String) {
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
+    val kills: MutableMap<UUID, Int> = mutableMapOf()
+
     val commandColors: Map<Int, Material> = mapOf(
         0 to Material.RED_CONCRETE,
         3 to Material.BLUE_CONCRETE,
@@ -52,6 +54,11 @@ class Game(var worldName: String) {
     private val playerScoreboards: MutableMap<UUID, org.bukkit.scoreboard.Scoreboard> = mutableMapOf()
     private val playerObjectives: MutableMap<UUID, org.bukkit.scoreboard.Objective> = mutableMapOf()
 
+    var totalPaintableBlocks: Int = 0
+
+    val jammerUntil: MutableMap<UUID, Long> = mutableMapOf()
+    val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
+
     fun shutdownGame() {
         gameTimerTask?.cancel()
         countdownTask?.cancel()
@@ -61,12 +68,15 @@ class Game(var worldName: String) {
         removeBossBar()
         clearScoreboards()
 
+        jammerUntil.clear()
+        ammoOverride.clear()
+
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
         val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
 
         commands.keys.forEach { playerId ->
-            val player = getPlayer(playerId)
+            val player = Bukkit.getPlayer(playerId)
             if (player != null) {
                 player.scoreboard = emptyScoreboard
                 player.inventory.clear()
@@ -85,7 +95,7 @@ class Game(var worldName: String) {
         activeTeams = commands.values.toSet().sorted()
 
         commands.keys.forEach { uuid ->
-            val player = getPlayer(uuid)
+            val player = Bukkit.getPlayer(uuid)
             if (player != null) {
                 player.inventory.clear()
                 player.teleport(Bukkit.getWorld(this.worldName)!!.spawnLocation)
@@ -102,6 +112,9 @@ class Game(var worldName: String) {
 
         removeBossBar()
         clearScoreboards()
+
+        jammerUntil.clear()
+        ammoOverride.clear()
 
         val winner = determineWinner()
         showWinnerAnnouncement(winner)
@@ -151,7 +164,7 @@ class Game(var worldName: String) {
             }
 
             commands.keys.forEach { playerId ->
-                val player = getPlayer(playerId)
+                val player = Bukkit.getPlayer(playerId)
 
                 if (player != null) {
                     player.scoreboard = emptyScoreboard
@@ -206,8 +219,7 @@ class Game(var worldName: String) {
                                 Duration.ofMillis(500)
                             )
                         )
-
-                        getPlayer(playerId)?.showTitle(titleObj)
+                        Bukkit.getPlayer(playerId)?.showTitle(titleObj)
                     }
                     playSoundToAllPlayers(
                         Sound.sound(
@@ -306,7 +318,7 @@ class Game(var worldName: String) {
 
     private fun playSoundToAllPlayers(sound: Sound) {
         commands.keys.forEach { playerId ->
-            getPlayer(playerId)?.playSound(sound)
+            Bukkit.getPlayer(playerId)?.playSound(sound)
         }
     }
 
@@ -322,7 +334,7 @@ class Game(var worldName: String) {
         )
 
         commands.keys.forEach { playerId ->
-            getPlayer(playerId)?.showTitle(titleObj)
+            Bukkit.getPlayer(playerId)?.showTitle(titleObj)
         }
     }
 
@@ -341,12 +353,22 @@ class Game(var worldName: String) {
 
     private fun startBoostTimer() {
         boostTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
-            giveSplatBomb(Bukkit.getWorld(worldName)!!)
-        }, 0L, 20L * 20 + Random.nextInt(21 * 20))
+            val w = Bukkit.getWorld(worldName) ?: return@Runnable
+            if (Random.nextInt(100) < 70) {
+                giveSplatBomb(w)
+            } else {
+                giveInkJammer(w)
+            }
+        }, 0L, 20L * 18 + Random.nextInt(21 * 20))
     }
 
     private fun startMainTimer(worldName: String) {
         timeLeft = totalTime
+
+        val w = Bukkit.getWorld(worldName)
+        if (w != null) {
+            recalcPaintableBlocks(w)
+        }
 
         clearScoreboards()
         createPlayerScoreboards()
@@ -417,12 +439,69 @@ class Game(var worldName: String) {
         }, 0L, 10L)
     }
 
+    fun recalcPaintableBlocks(world: World) {
+        totalPaintableBlocks = 0
+
+        paintedCommand.keys.forEach { paintedCommand[it] = 0 }
+
+        val materialToTeam = mutableMapOf<Material, Int>()
+        commandColors.forEach { (team, mat) -> materialToTeam[mat] = team }
+
+        val paintable = setOf(
+            Material.WHITE_CONCRETE,
+            Material.RED_CONCRETE,
+            Material.YELLOW_CONCRETE,
+            Material.GREEN_CONCRETE,
+            Material.BLUE_CONCRETE
+        )
+
+        world.loadedChunks.forEach { chunk ->
+            for (x in 0..15) {
+                for (z in 0..15) {
+                    for (y in world.minHeight until world.maxHeight) {
+                        val b = chunk.getBlock(x, y, z)
+                        if (!paintable.contains(b.type)) continue
+
+                        totalPaintableBlocks++
+                        val team = materialToTeam[b.type]
+                        if (team != null) {
+                            paintedCommand[team] = (paintedCommand[team] ?: 0) + 1
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun isJammerActive(uuid: UUID): Boolean {
+        val until = jammerUntil[uuid] ?: return false
+        return System.currentTimeMillis() < until
+    }
+
+    fun activateJammer(uuid: UUID, durationMs: Long) {
+        jammerUntil[uuid] = System.currentTimeMillis() + durationMs
+    }
+
+    fun applyAmmoOverride(uuid: UUID, team: Int, durationMs: Long) {
+        ammoOverride[uuid] = team to (System.currentTimeMillis() + durationMs)
+    }
+
+    fun getAmmoTeam(uuid: UUID): Int? {
+        val base = commands[uuid] ?: return null
+        val override = ammoOverride[uuid]
+        if (override != null) {
+            if (System.currentTimeMillis() < override.second) return override.first
+            ammoOverride.remove(uuid)
+        }
+        return base
+    }
+
     private fun createBossBar() {
         val title = formatBossBarTitle()
         bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SOLID)
         bossBar?.isVisible = true
         commands.keys.forEach { playerId ->
-            val player = getPlayer(playerId)
+            val player = Bukkit.getPlayer(playerId)
             if (player != null) bossBar?.addPlayer(player)
         }
         updateBossBar()
@@ -465,7 +544,7 @@ class Game(var worldName: String) {
 
     private fun createPlayerScoreboards() {
         commands.keys.forEach { uuid ->
-            val player = getPlayer(uuid) ?: return@forEach
+            val player = Bukkit.getPlayer(uuid) ?: return@forEach
 
             val sb = Bukkit.getScoreboardManager().newScoreboard
             val obj = sb.registerNewObjective(
@@ -484,7 +563,7 @@ class Game(var worldName: String) {
     }
 
     private fun updateAllPlayerScoreboards() {
-        val totalPainted = activeTeams.sumOf { paintedCommand[it] ?: 0 }
+        val totalForPercent = if (totalPaintableBlocks > 0) totalPaintableBlocks else activeTeams.sumOf { paintedCommand[it] ?: 0 }
 
         commands.keys.forEach { uuid ->
             val sb = playerScoreboards[uuid] ?: return@forEach
@@ -496,35 +575,37 @@ class Game(var worldName: String) {
 
             var score = 15
 
-            val top = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-            obj.getScore(top).score = score
+            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬").score = score
             score--
 
-            val blank1 = " "
-            obj.getScore(blank1).score = score
-            score--
-
-            obj.getScore("§f§lСЧЕТ КОМАНД:").score = score
+            obj.getScore("§f§lСЧЕТ:").score = score
             score--
 
             activeTeams.forEach { team ->
-                obj.getScore(formatTeamLine(team, totalPainted)).score = score
+                if (score <= 0) return@forEach
+                obj.getScore(formatTeamLine(team, totalForPercent)).score = score
                 score--
             }
 
-            val blank2 = "  "
-            obj.getScore(blank2).score = score
+            if (score <= 0) return@forEach
+            obj.getScore(" ").score = score
             score--
 
             val team = commands[uuid]
+            if (score <= 0) return@forEach
             obj.getScore(formatYouLine(team)).score = score
             score--
 
-            val blank3 = "   "
-            obj.getScore(blank3).score = score
+            if (score <= 0) return@forEach
+            obj.getScore(formatAmmoLine(uuid)).score = score
             score--
 
-            obj.getScore("§f§lВКЛАД КОМАНДЫ:").score = score
+            if (score <= 0) return@forEach
+            obj.getScore("  ").score = score
+            score--
+
+            if (score <= 0) return@forEach
+            obj.getScore("§f§lВКЛАД:").score = score
             score--
 
             if (team != null) {
@@ -539,14 +620,13 @@ class Game(var worldName: String) {
                     .sortedByDescending { it.second }
 
                 sorted.forEach { (pid, value) ->
-                    if (score <= 1) return@forEach
+                    if (score <= 0) return@forEach
                     obj.getScore(formatPlayerContributionLine(pid, value, teamTotal)).score = score
                     score--
                 }
             }
 
-            val bottom = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6"
-            obj.getScore(bottom).score = 1
+            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6").score = 0
         }
     }
 
@@ -564,9 +644,16 @@ class Game(var worldName: String) {
         return "§f§lВы: §f${teamLabel(team)}"
     }
 
-    private fun formatTeamLine(team: Int, totalPainted: Int): String {
+    private fun formatAmmoLine(uuid: UUID): String {
+        val ammoTeam = getAmmoTeam(uuid)
+        val baseTeam = commands[uuid]
+        val prefix = if (ammoTeam != null && baseTeam != null && ammoTeam != baseTeam) "§c" else "§f"
+        return "${prefix}Патроны: §f${teamLabel(ammoTeam)}"
+    }
+
+    private fun formatTeamLine(team: Int, totalPaintable: Int): String {
         val value = paintedCommand[team] ?: 0
-        val percent = if (totalPainted <= 0) 0 else ((value.toDouble() * 100.0) / totalPainted.toDouble()).roundToInt()
+        val percent = if (totalPaintable <= 0) 0 else ((value.toDouble() * 100.0) / totalPaintable.toDouble()).roundToInt()
 
         return when (team) {
             0 -> "§cКрасная: §f$value §7(${percent}%)"
@@ -581,6 +668,7 @@ class Game(var worldName: String) {
         val nameRaw = Bukkit.getOfflinePlayer(uuid).name ?: "Player"
         val name = if (nameRaw.length > 10) nameRaw.substring(0, 10) else nameRaw
         val percent = if (teamTotal <= 0) 0 else ((value.toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
-        return "§b$name: §f$value §7(${percent}%)"
+        val k = kills[uuid] ?: 0
+        return "§b$name: §f$value §7(${percent}%) §c✦$k"
     }
 }
