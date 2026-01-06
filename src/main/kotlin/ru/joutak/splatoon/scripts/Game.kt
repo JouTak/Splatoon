@@ -24,7 +24,7 @@ import ru.joutak.splatoon.SplatoonPlugin
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
-import kotlin.collections.forEach
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class Game(var worldName: String) {
@@ -46,11 +46,11 @@ class Game(var worldName: String) {
     private var timeLeft = 0
     private val totalTime = 5 * 60
 
-    private var gameScoreboard: org.bukkit.scoreboard.Scoreboard? = null
-    private var objective: org.bukkit.scoreboard.Objective? = null
-
     private var bossBar: BossBar? = null
     private var activeTeams: List<Int> = listOf()
+
+    private val playerScoreboards: MutableMap<UUID, org.bukkit.scoreboard.Scoreboard> = mutableMapOf()
+    private val playerObjectives: MutableMap<UUID, org.bukkit.scoreboard.Objective> = mutableMapOf()
 
     fun shutdownGame() {
         gameTimerTask?.cancel()
@@ -59,6 +59,7 @@ class Game(var worldName: String) {
         boostTimerTask?.cancel()
 
         removeBossBar()
+        clearScoreboards()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
@@ -100,6 +101,7 @@ class Game(var worldName: String) {
         boostTimerTask?.cancel()
 
         removeBossBar()
+        clearScoreboards()
 
         val winner = determineWinner()
         showWinnerAnnouncement(winner)
@@ -160,7 +162,6 @@ class Game(var worldName: String) {
                     player.activePotionEffects.forEach { effect ->
                         player.removePotionEffect(effect.type)
                     }
-
                     player.inventory.clear()
                     player.teleport(lobbyLocation.spawnLocation)
                 }
@@ -296,8 +297,8 @@ class Game(var worldName: String) {
         meta.persistentDataContainer.set(
             NamespacedKey(SplatoonPlugin.instance, "splatGun"), PersistentDataType.BOOLEAN, true
         )
-
         item.itemMeta = meta
+
         commands.keys.forEach { uuid ->
             Bukkit.getPlayer(uuid)?.inventory?.addItem(item.clone())
         }
@@ -346,7 +347,11 @@ class Game(var worldName: String) {
 
     private fun startMainTimer(worldName: String) {
         timeLeft = totalTime
-        createTimerScoreboard()
+
+        clearScoreboards()
+        createPlayerScoreboards()
+
+        removeBossBar()
         createBossBar()
 
         gameTimerTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
@@ -408,7 +413,7 @@ class Game(var worldName: String) {
         }, 0L, 20L)
 
         scoreboardUpdateTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
-            updateTimerScoreboard()
+            updateAllPlayerScoreboards()
         }, 0L, 10L)
     }
 
@@ -453,58 +458,129 @@ class Game(var worldName: String) {
         }
     }
 
-    private fun createTimerScoreboard() {
-        gameScoreboard = Bukkit.getScoreboardManager().newScoreboard
-
-        objective = gameScoreboard?.registerNewObjective(
-            "gametimer",
-            org.bukkit.scoreboard.Criteria.DUMMY,
-            Component.text("Splatoon", NamedTextColor.GOLD)
-        )
-
-        objective?.displaySlot = DisplaySlot.SIDEBAR
-
-        commands.keys.forEach { playerId ->
-            getPlayer(playerId)?.scoreboard = gameScoreboard!!
-        }
-
-        updateTimerScoreboard()
+    private fun clearScoreboards() {
+        playerObjectives.clear()
+        playerScoreboards.clear()
     }
 
-    private fun updateTimerScoreboard() {
-        gameScoreboard?.entries?.forEach { entry ->
-            gameScoreboard?.resetScores(entry)
+    private fun createPlayerScoreboards() {
+        commands.keys.forEach { uuid ->
+            val player = getPlayer(uuid) ?: return@forEach
+
+            val sb = Bukkit.getScoreboardManager().newScoreboard
+            val obj = sb.registerNewObjective(
+                "gametimer",
+                org.bukkit.scoreboard.Criteria.DUMMY,
+                Component.text("Splatoon", NamedTextColor.GOLD)
+            )
+            obj.displaySlot = DisplaySlot.SIDEBAR
+
+            player.scoreboard = sb
+            playerScoreboards[uuid] = sb
+            playerObjectives[uuid] = obj
         }
 
-        var score = 15
+        updateAllPlayerScoreboards()
+    }
 
-        val top = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
-        objective?.getScore(top)?.score = score
-        score--
+    private fun updateAllPlayerScoreboards() {
+        val totalPainted = activeTeams.sumOf { paintedCommand[it] ?: 0 }
 
-        val l1 = " "
-        objective?.getScore(l1)?.score = score
-        score--
+        commands.keys.forEach { uuid ->
+            val sb = playerScoreboards[uuid] ?: return@forEach
+            val obj = playerObjectives[uuid] ?: return@forEach
 
-        objective?.getScore("§f§lСЧЕТ КОМАНД:")?.score = score
-        score--
+            sb.entries.forEach { entry ->
+                sb.resetScores(entry)
+            }
 
-        activeTeams.forEach { team ->
-            objective?.getScore(formatTeamLine(team))?.score = score
+            var score = 15
+
+            val top = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+            obj.getScore(top).score = score
             score--
-        }
 
-        val bottom = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6"
-        objective?.getScore(bottom)?.score = 0
+            val blank1 = " "
+            obj.getScore(blank1).score = score
+            score--
+
+            obj.getScore("§f§lСЧЕТ КОМАНД:").score = score
+            score--
+
+            activeTeams.forEach { team ->
+                obj.getScore(formatTeamLine(team, totalPainted)).score = score
+                score--
+            }
+
+            val blank2 = "  "
+            obj.getScore(blank2).score = score
+            score--
+
+            val team = commands[uuid]
+            obj.getScore(formatYouLine(team)).score = score
+            score--
+
+            val blank3 = "   "
+            obj.getScore(blank3).score = score
+            score--
+
+            obj.getScore("§f§lВКЛАД КОМАНДЫ:").score = score
+            score--
+
+            if (team != null) {
+                val teamPlayers = commands.entries
+                    .filter { it.value == team }
+                    .map { it.key }
+
+                val teamTotal = teamPlayers.sumOf { paintedPerson[it] ?: 0 }
+
+                val sorted = teamPlayers
+                    .map { it to (paintedPerson[it] ?: 0) }
+                    .sortedByDescending { it.second }
+
+                sorted.forEach { (pid, value) ->
+                    if (score <= 1) return@forEach
+                    obj.getScore(formatPlayerContributionLine(pid, value, teamTotal)).score = score
+                    score--
+                }
+            }
+
+            val bottom = "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6"
+            obj.getScore(bottom).score = 1
+        }
     }
 
-    private fun formatTeamLine(team: Int): String {
+    private fun teamLabel(team: Int?): String {
         return when (team) {
-            0 -> "§cКрасная: §f${paintedCommand[0]}"
-            1 -> "§eЖелтая: §f${paintedCommand[1]}"
-            2 -> "§aЗеленая: §f${paintedCommand[2]}"
-            3 -> "§9Синяя: §f${paintedCommand[3]}"
-            else -> "§fКоманда: §f${paintedCommand[team] ?: 0}"
+            0 -> "§cКрасные"
+            1 -> "§eЖёлтые"
+            2 -> "§aЗелёные"
+            3 -> "§9Синие"
+            else -> "§7-"
         }
+    }
+
+    private fun formatYouLine(team: Int?): String {
+        return "§f§lВы: §f${teamLabel(team)}"
+    }
+
+    private fun formatTeamLine(team: Int, totalPainted: Int): String {
+        val value = paintedCommand[team] ?: 0
+        val percent = if (totalPainted <= 0) 0 else ((value.toDouble() * 100.0) / totalPainted.toDouble()).roundToInt()
+
+        return when (team) {
+            0 -> "§cКрасная: §f$value §7(${percent}%)"
+            1 -> "§eЖелтая: §f$value §7(${percent}%)"
+            2 -> "§aЗеленая: §f$value §7(${percent}%)"
+            3 -> "§9Синяя: §f$value §7(${percent}%)"
+            else -> "§fКоманда: §f$value §7(${percent}%)"
+        }
+    }
+
+    private fun formatPlayerContributionLine(uuid: UUID, value: Int, teamTotal: Int): String {
+        val nameRaw = Bukkit.getOfflinePlayer(uuid).name ?: "Player"
+        val name = if (nameRaw.length > 10) nameRaw.substring(0, 10) else nameRaw
+        val percent = if (teamTotal <= 0) 0 else ((value.toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
+        return "§b$name: §f$value §7(${percent}%)"
     }
 }
