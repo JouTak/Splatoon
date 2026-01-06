@@ -43,6 +43,32 @@ class Game(var worldName: String) {
     private var timeLeft = 0
     private var gameScoreboard: org.bukkit.scoreboard.Scoreboard? = null
     private var objective: org.bukkit.scoreboard.Objective? = null
+
+    fun shutdownGame() {
+        gameTimerTask?.cancel()
+        countdownTask?.cancel()
+        scoreboardUpdateTask?.cancel()
+        boostTimerTask?.cancel()
+
+        val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
+        val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
+        val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
+
+        commands.keys.forEach { playerId ->
+            val player = getPlayer(playerId)
+            if (player != null) {
+                player.scoreboard = emptyScoreboard
+                player.inventory.clear()
+                player.health = 20.0
+                player.foodLevel = 20
+                player.saturation = 20f
+                player.activePotionEffects.forEach { effect ->
+                    player.removePotionEffect(effect.type)
+                }
+                player.teleport(spawn)
+            }
+        }
+    }
     fun startGame(worldName: String) {
         commands.keys.forEach { uuid ->
             val player =  getPlayer(uuid)

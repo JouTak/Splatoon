@@ -3,12 +3,13 @@ package ru.joutak.splatoon
 import org.bukkit.Bukkit
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
+import ru.joutak.minigames.MiniGamesCore
+import ru.joutak.minigames.domain.GameInstanceConfig
+import ru.joutak.minigames.managers.MatchmakingManager
+import ru.joutak.splatoon.listeners.PlayerSessionListener
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
-import ru.joutak.minigames.MiniGamesCore
-import ru.joutak.minigames.managers.MatchmakingManager
-import ru.joutak.minigames.domain.GameInstanceConfig
 import ru.joutak.splatoon.scripts.GameManager
 import java.io.File
 
@@ -44,6 +45,8 @@ class SplatoonPlugin : JavaPlugin() {
                 }
             }
         }
+
+        GameManager.registerTemplateWorld(mapName)
     }
 
     private fun loadArenas() {
@@ -62,6 +65,7 @@ class SplatoonPlugin : JavaPlugin() {
                     meta = mapOf("world" to world)
                 )
             )
+            GameManager.registerTemplateWorld(world)
         }
         MatchmakingManager.loadInstances(arenasList)
     }
@@ -73,23 +77,25 @@ class SplatoonPlugin : JavaPlugin() {
         MiniGamesCore.initialize(this)
         loadArenas()
 
+        GameManager.cleanupOrphanedWorlds()
+
         Bukkit.getPluginManager().registerEvents(PlayerToggleSneakListener(), this)
         Bukkit.getPluginManager().registerEvents(PlayerUseListener(this), this)
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
+        Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
 
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 
-        var taskId = 0
-        taskId = server.scheduler.runTaskTimer(this, Runnable {
+        server.scheduler.runTaskTimer(this, Runnable {
             val instance = MatchmakingManager.pollReady()
             if (instance != null) {
                 logger.info("Команды собрались!")
                 GameManager.createGame(instance)
             }
-        }, 20L, 20L).taskId
+        }, 20L, 20L)
     }
 
     override fun onDisable() {
-
+        GameManager.shutdownAllGames()
     }
 }
