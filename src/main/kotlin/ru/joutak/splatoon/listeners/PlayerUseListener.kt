@@ -1,77 +1,99 @@
 package ru.joutak.splatoon.listeners
 
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
-import org.bukkit.entity.EntityType
+import org.bukkit.NamespacedKey
+import org.bukkit.entity.Snowball
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
-import org.bukkit.event.player.PlayerInteractEvent
-import org.bukkit.metadata.FixedMetadataValue
-import org.bukkit.plugin.Plugin
-import org.bukkit.persistence.PersistentDataType
-import org.bukkit.NamespacedKey
 import org.bukkit.event.block.Action
+import org.bukkit.event.player.PlayerInteractEvent
 import org.bukkit.inventory.ItemStack
+import org.bukkit.metadata.FixedMetadataValue
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.scripts.GameManager
 
-class PlayerUseListener(val plugin: Plugin) : Listener {
+class PlayerUseListener(private val plugin: Plugin) : Listener {
+
     @EventHandler
-    fun playerUseItemEvent(event: PlayerInteractEvent) {
-        val commandColors: Map<Int, String> = mapOf(
+    fun onClick(event: PlayerInteractEvent) {
+        val player = event.player
+        val action = event.action
+
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
+
+        val itemInHand = player.inventory.itemInMainHand
+        if (itemInHand.type == Material.AIR) return
+
+        val meta = itemInHand.itemMeta ?: return
+        val pdc = meta.persistentDataContainer
+
+        val commandColors = mapOf(
             0 to "Red",
             3 to "Blue",
             2 to "Green",
             1 to "Yellow"
         )
-        val player = event.player
-        val action = event.action
-        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
-        if ((action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) && player.inventory.itemInMainHand.type == Material.GOLDEN_SHOVEL && player.inventory.itemInMainHand.itemMeta.persistentDataContainer.has(
+
+        if (itemInHand.type == Material.GOLDEN_SHOVEL && pdc.has(
                 NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN
             )
-        ) player.world.spawnEntity(
-            Location(
-                player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
-            ).add(player.location.direction), EntityType.SNOWBALL
-        ).apply {
-            velocity = player.location.direction.multiply(1.4)
-            setMetadata("itemData", FixedMetadataValue(plugin,
-                mapOf(
-                    "id" to "minecraft:snowball",
-                    "components" to mapOf(
-                        "custom_name" to commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]!!
-                    )
-                )
-            ))
-            isCustomNameVisible = true
-            setMetadata("paintKey", FixedMetadataValue(plugin, 1))
-            setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+        ) {
+            val game = GameManager.playerGame[player.uniqueId] ?: return
+            val teamId = game.commands[player.uniqueId] ?: return
+            val colorName = commandColors[teamId] ?: return
+
+            val projectileItem = createProjectileItem(colorName)
+
+            player.world.spawn(
+                Location(
+                    player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
+                ).add(player.location.direction),
+                Snowball::class.java
+            ).apply {
+                item = projectileItem
+                velocity = player.location.direction.multiply(1.4)
+                shooter = player
+
+                setMetadata("paintKey", FixedMetadataValue(plugin, 1))
+                setMetadata("shooter", FixedMetadataValue(plugin, player.name))
+            }
+            return
         }
-        if (player.inventory.itemInMainHand.type == Material.GOLDEN_AXE && player.inventory.itemInMainHand.itemMeta.persistentDataContainer.has(
+
+        if (itemInHand.type == Material.GOLDEN_AXE && pdc.has(
                 NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN
             )
         ) {
-            player.world.spawnEntity(
+            val projectileItem = createProjectileItem("Bomb")
+
+            player.world.spawn(
                 Location(
                     player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
-                ).add(player.location.direction), EntityType.SNOWBALL
+                ).add(player.location.direction),
+                Snowball::class.java
             ).apply {
-                setMetadata("itemData", FixedMetadataValue(plugin,
-                    mapOf(
-                        "id" to "minecraft:snowball",
-                        "components" to mapOf(
-                            "custom_name" to "Bomb"
-                        )
-                    )
-                ))
+                item = projectileItem
                 velocity = player.location.direction.multiply(1.1)
+                shooter = player
+
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("bombKey", FixedMetadataValue(plugin, 1))
                 setMetadata("shooter", FixedMetadataValue(plugin, player.name))
             }
+
             player.inventory.setItemInMainHand(null)
         }
+    }
+
+    private fun createProjectileItem(name: String): ItemStack {
+        val stack = ItemStack(Material.SNOWBALL, 1)
+        stack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name))
+        return stack
     }
 }
