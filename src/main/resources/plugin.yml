@@ -9,6 +9,16 @@ website: ${WEBSITE}
 commands:
   splatoon:
     usage: "only with miniGAMES API"
+  splatgun:
+    permission: splatoon.admin
+  splatbomb:
+    permission: splatoon.admin
+  bacillus:
+    permission: splatoon.admin
+
+permissions:
+  splatoon.admin:
+    default: op
 
 depend: []
 libraries:
