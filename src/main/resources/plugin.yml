@@ -8,16 +8,12 @@ contributors: ['EnderDissa']
 website: ${WEBSITE}
 commands:
   splatoon:
-    usage: "only with miniGAMES API"
-  splatgun:
-    permission: splatoon.admin
-  splatbomb:
-    permission: splatoon.admin
-  bacillus:
-    permission: splatoon.admin
+    description: "Splatoon admin utilities"
+    usage: "/splatoon get <gun|bomb|bacillus>"
 
 permissions:
   splatoon.admin:
+    description: "Admin tools for Splatoon"
     default: op
 
 depend: []
