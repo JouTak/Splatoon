@@ -24,6 +24,7 @@ import ru.joutak.splatoon.SplatoonPlugin
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
+import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -56,8 +57,8 @@ class Game(var worldName: String) {
 
     var totalPaintableBlocks: Int = 0
 
-    val jammerUntil: MutableMap<UUID, Long> = mutableMapOf()
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
+    val spawnProtectedUntil: MutableMap<UUID, Long> = mutableMapOf()
 
     fun shutdownGame() {
         gameTimerTask?.cancel()
@@ -68,8 +69,8 @@ class Game(var worldName: String) {
         removeBossBar()
         clearScoreboards()
 
-        jammerUntil.clear()
         ammoOverride.clear()
+        spawnProtectedUntil.clear()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
@@ -113,11 +114,18 @@ class Game(var worldName: String) {
         removeBossBar()
         clearScoreboards()
 
-        jammerUntil.clear()
         ammoOverride.clear()
+        spawnProtectedUntil.clear()
 
         val winner = determineWinner()
-        showWinnerAnnouncement(winner)
+
+        Bukkit.getScheduler().runTask(SplatoonPlugin.instance, Runnable {
+            showWinnerAnnouncement(winner)
+        })
+        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            showWinnerAnnouncement(winner)
+        }, 10L)
+
         playSoundToAllPlayers(
             Sound.sound(
                 Key.key("ui.toast.challenge_complete"),
@@ -327,9 +335,9 @@ class Game(var worldName: String) {
             title,
             subtitle,
             Title.Times.times(
-                Duration.ofMillis(500),
-                Duration.ofMillis(2000),
-                Duration.ofMillis(500)
+                Duration.ofMillis(200),
+                Duration.ofMillis(2500),
+                Duration.ofMillis(200)
             )
         )
 
@@ -357,7 +365,7 @@ class Game(var worldName: String) {
             if (Random.nextInt(100) < 70) {
                 giveSplatBomb(w)
             } else {
-                giveInkJammer(w)
+                giveBacillus(w)
             }
         }, 0L, 20L * 18 + Random.nextInt(21 * 20))
     }
@@ -473,15 +481,6 @@ class Game(var worldName: String) {
         }
     }
 
-    fun isJammerActive(uuid: UUID): Boolean {
-        val until = jammerUntil[uuid] ?: return false
-        return System.currentTimeMillis() < until
-    }
-
-    fun activateJammer(uuid: UUID, durationMs: Long) {
-        jammerUntil[uuid] = System.currentTimeMillis() + durationMs
-    }
-
     fun applyAmmoOverride(uuid: UUID, team: Int, durationMs: Long) {
         ammoOverride[uuid] = team to (System.currentTimeMillis() + durationMs)
     }
@@ -494,6 +493,15 @@ class Game(var worldName: String) {
             ammoOverride.remove(uuid)
         }
         return base
+    }
+
+    fun setSpawnProtection(uuid: UUID, durationMs: Long) {
+        spawnProtectedUntil[uuid] = System.currentTimeMillis() + durationMs
+    }
+
+    fun isSpawnProtectionActive(uuid: UUID): Boolean {
+        val until = spawnProtectedUntil[uuid] ?: return false
+        return System.currentTimeMillis() < until
     }
 
     private fun createBossBar() {
@@ -613,7 +621,7 @@ class Game(var worldName: String) {
                     .filter { it.value == team }
                     .map { it.key }
 
-                val teamTotal = teamPlayers.sumOf { paintedPerson[it] ?: 0 }
+                val teamTotal = teamPlayers.sumOf { max(paintedPerson[it] ?: 0, 0) }
 
                 val sorted = teamPlayers
                     .map { it to (paintedPerson[it] ?: 0) }
@@ -667,8 +675,14 @@ class Game(var worldName: String) {
     private fun formatPlayerContributionLine(uuid: UUID, value: Int, teamTotal: Int): String {
         val nameRaw = Bukkit.getOfflinePlayer(uuid).name ?: "Player"
         val name = if (nameRaw.length > 10) nameRaw.substring(0, 10) else nameRaw
-        val percent = if (teamTotal <= 0) 0 else ((value.toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
+        val percent = if (value <= 0 || teamTotal <= 0) 0 else ((value.toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
         val k = kills[uuid] ?: 0
-        return "§b$name: §f$value §7(${percent}%) §c✦$k"
+        val valueColor = when {
+            value > 0 -> "§f"
+            value < 0 -> "§c"
+            else -> "§7"
+        }
+        val percentPart = if (value > 0) " §7(${percent}%)" else ""
+        return "§b$name: ${valueColor}$value${percentPart} §c✦$k"
     }
 }

@@ -35,18 +35,6 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
 
         val game = GameManager.playerGame[player.uniqueId]
 
-        if (game != null && pdc.has(NamespacedKey(plugin, "Jammer"), PersistentDataType.BOOLEAN)) {
-            game.activateJammer(player.uniqueId, 15_000)
-            val amount = itemInHand.amount
-            if (amount <= 1) {
-                player.inventory.setItemInMainHand(null)
-            } else {
-                itemInHand.amount = amount - 1
-                player.inventory.setItemInMainHand(itemInHand)
-            }
-            return
-        }
-
         val commandColors = mapOf(
             0 to "Red",
             3 to "Blue",

@@ -11,6 +11,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
 import kotlin.math.ceil
@@ -18,50 +19,104 @@ import kotlin.math.floor
 
 class ProjectileHitListener : Listener {
 
+    private val spawnProtectionRadius = 7.0
+    private val spawnProtectionRadiusSq = spawnProtectionRadius * spawnProtectionRadius
+
     @EventHandler
     fun projectileHitEvent(event: ProjectileHitEvent) {
         val entity = event.entity
-        val block = event.hitBlock
-        val hitEntity = event.hitEntity
-        val blockface = event.hitBlockFace
-
         if (entity.type != EntityType.SNOWBALL) return
-        if (!entity.hasMetadata("paintKey")) return
 
         val shooterUuid = getShooterUuid(entity.getMetadata("shooterId").firstOrNull()?.asString())
         val shooter = if (shooterUuid != null) Bukkit.getPlayer(shooterUuid) else null
         if (shooter == null) return
 
-        val shooterGame = GameManager.playerGame[shooter.uniqueId] ?: return
+        val game = GameManager.playerGame[shooter.uniqueId] ?: return
+        val shooterTeam = game.commands[shooter.uniqueId] ?: return
+
+
+        if (!entity.hasMetadata("paintKey")) return
+
+        val block = event.hitBlock
+        val hitEntity = event.hitEntity
+        val blockface = event.hitBlockFace
 
         val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt()
-            ?: (shooterGame.commands[shooter.uniqueId] ?: return)
+            ?: (game.commands[shooter.uniqueId] ?: return)
 
-        val radius = if (entity.hasMetadata("bombKey")) 5.0 else 1.5
+        val isBomb = entity.hasMetadata("bombKey")
+        val radius = if (isBomb) 5.0 else 1.5
 
         if (hitEntity != null && hitEntity is Player) {
             val victim = hitEntity
             val victimGame = GameManager.playerGame[victim.uniqueId]
-            if (victimGame != null && victimGame == shooterGame) {
-                val shooterTeam = shooterGame.commands[shooter.uniqueId]
-                val victimTeam = shooterGame.commands[victim.uniqueId]
-                if (shooterTeam != null && victimTeam != null && shooterTeam != victimTeam) {
-                    if (shooterGame.isJammerActive(shooter.uniqueId)) {
-                        shooterGame.applyAmmoOverride(victim.uniqueId, shooterTeam, 5_000)
+            if (victimGame != null && victimGame == game) {
+                val victimTeam = game.commands[victim.uniqueId]
+                if (victimTeam != null && victimTeam != shooterTeam) {
+                    if (!isSpawnSafe(victim, game)) {
+                        if (!isInkSafe(victim, game)) {
+                            game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
+                            splatAndRespawn(victim, game)
+                        }
                     }
-                    shooterGame.kills[shooter.uniqueId] = (shooterGame.kills[shooter.uniqueId] ?: 0) + 1
-                    splatAndRespawn(victim, shooterGame.worldName)
                 }
             }
-            explosivePaint(radius, victim.location, entity.world, shooterGame, shooter.uniqueId, paintTeam)
+            explosivePaint(radius, victim.location, entity.world, game, shooter.uniqueId, paintTeam)
         } else {
             if (block == null || blockface == null) return
-            explosivePaint(radius, block.getRelative(blockface).location, entity.world, shooterGame, shooter.uniqueId, paintTeam)
+            explosivePaint(radius, block.getRelative(blockface).location, entity.world, game, shooter.uniqueId, paintTeam)
+        }
+
+        if (isBomb) {
+            val center = if (hitEntity != null) hitEntity.location else (block?.getRelative(blockface!!)?.location)
+            if (center != null) {
+                entity.world.getNearbyEntities(center, radius, radius, radius).forEach { e ->
+                    if (e is Player) {
+                        val victimGame = GameManager.playerGame[e.uniqueId]
+                        if (victimGame != null && victimGame == game) {
+                            val victimTeam = game.commands[e.uniqueId]
+                            if (victimTeam != null && victimTeam != shooterTeam) {
+                                if (!isSpawnSafe(e, game)) {
+                                    if (!isInkSafe(e, game)) {
+                                        game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
+                                        splatAndRespawn(e, game)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private fun splatAndRespawn(player: Player, worldName: String) {
-        val w = Bukkit.getWorld(worldName) ?: return
+    private fun isInkSafe(player: Player, game: Game): Boolean {
+        val team = game.commands[player.uniqueId] ?: return false
+        val mat = game.commandColors[team] ?: return false
+
+        val feet = player.location.block.type
+        val below = player.location.clone().subtract(0.0, 1.0, 0.0).block.type
+        val onInk = feet == mat || below == mat
+
+        return onInk
+    }
+
+    private fun isSpawnSafe(player: Player, game: Game): Boolean {
+        val w = Bukkit.getWorld(game.worldName) ?: return false
+        if (player.world.name != w.name) return false
+
+        if (game.isSpawnProtectionActive(player.uniqueId)) return true
+
+        val spawn = w.spawnLocation
+        val dx = player.location.x - spawn.x
+        val dy = player.location.y - spawn.y
+        val dz = player.location.z - spawn.z
+        val distSq = dx * dx + dy * dy + dz * dz
+        return distSq <= spawnProtectionRadiusSq
+    }
+
+    private fun splatAndRespawn(player: Player, game: Game) {
+        val w = Bukkit.getWorld(game.worldName) ?: return
         val spawn = w.spawnLocation
 
         player.activePotionEffects.forEach { e -> player.removePotionEffect(e.type) }
@@ -72,8 +127,9 @@ class ProjectileHitListener : Listener {
         player.foodLevel = 20
         player.saturation = 20f
 
-        player.addPotionEffect(PotionEffect(PotionEffectType.RESISTANCE, 40, 10, false, false, false))
-        player.noDamageTicks = 40
+        game.setSpawnProtection(player.uniqueId, 4_000)
+        player.addPotionEffect(PotionEffect(PotionEffectType.RESISTANCE, 60, 10, false, false, false))
+        player.noDamageTicks = 60
     }
 
     private fun getShooterUuid(str: String?): UUID? {
@@ -85,7 +141,7 @@ class ProjectileHitListener : Listener {
         }
     }
 
-    private fun explosivePaint(r: Double, location: org.bukkit.Location, world: World, game: ru.joutak.splatoon.scripts.Game, shooterId: UUID, paintTeam: Int) {
+    private fun explosivePaint(r: Double, location: org.bukkit.Location, world: World, game: Game, shooterId: UUID, paintTeam: Int) {
         val blocks = mutableListOf<Block>()
         for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
             for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
@@ -109,6 +165,9 @@ class ProjectileHitListener : Listener {
 
         val newMat = game.commandColors[paintTeam] ?: Material.WHITE_CONCRETE
 
+        val baseTeam = game.commands[shooterId]
+        val delta = if (baseTeam != null && baseTeam == paintTeam) 1 else -1
+
         for (b in blocks) {
             if (!paintable.contains(b.type)) continue
             if (b.type == newMat) continue
@@ -120,7 +179,7 @@ class ProjectileHitListener : Listener {
 
             b.type = newMat
 
-            game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + 1
+            game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + delta
             game.paintedCommand[paintTeam] = (game.paintedCommand[paintTeam] ?: 0) + 1
         }
     }
