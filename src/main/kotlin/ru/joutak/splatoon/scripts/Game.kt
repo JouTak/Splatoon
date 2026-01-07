@@ -59,6 +59,10 @@ class Game(var worldName: String) {
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
     val spawnProtectedUntil: MutableMap<UUID, Long> = mutableMapOf()
 
+    val inkHp: MutableMap<UUID, Int> = mutableMapOf()
+    val maxInkHp = 3
+
+
     fun shutdownGame() {
         gameTimerTask?.cancel()
         countdownTask?.cancel()
@@ -70,6 +74,8 @@ class Game(var worldName: String) {
 
         ammoOverride.clear()
         spawnProtectedUntil.clear()
+
+        inkHp.clear()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
@@ -94,6 +100,9 @@ class Game(var worldName: String) {
     fun startGame(worldName: String) {
         activeTeams = commands.values.toSet().sorted()
 
+        inkHp.clear()
+        commands.keys.forEach { inkHp[it] = maxInkHp }
+
         commands.keys.forEach { uuid ->
             val player = Bukkit.getPlayer(uuid)
             if (player != null) {
@@ -115,6 +124,8 @@ class Game(var worldName: String) {
 
         ammoOverride.clear()
         spawnProtectedUntil.clear()
+
+        inkHp.clear()
 
         val winner = determineWinner()
 

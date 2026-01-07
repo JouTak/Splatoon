@@ -27,22 +27,20 @@ class ProjectileHitListener : Listener {
     fun projectileHitEvent(event: ProjectileHitEvent) {
         val projectile = event.entity
         if (projectile.type != EntityType.SNOWBALL) return
+        if (!projectile.hasMetadata("paintKey")) return
 
         val shooterId = getShooterUuid(projectile.getMetadata("shooterId").firstOrNull()?.asString()) ?: return
         val shooter = Bukkit.getPlayer(shooterId) ?: return
 
-        val game = GameManager.playerGame[shooter.uniqueId] ?: return
-        val shooterTeam = game.commands[shooter.uniqueId] ?: return
+        val paintTeam = projectile.getMetadata("paintTeam").firstOrNull()?.asInt() ?: return
+        val baseTeam = projectile.getMetadata("baseTeam").firstOrNull()?.asInt()
 
-        if (!projectile.hasMetadata("paintKey")) return
+        val isBomb = projectile.hasMetadata("bombKey")
+        val radius = if (isBomb) 5.0 else 1.5
 
         val hitBlock = event.hitBlock
         val hitFace = event.hitBlockFace
         val hitEntity = event.hitEntity
-
-        val paintTeam = projectile.getMetadata("paintTeam").firstOrNull()?.asInt() ?: (game.commands[shooter.uniqueId] ?: return)
-        val isBomb = projectile.hasMetadata("bombKey")
-        val radius = if (isBomb) 5.0 else 1.5
 
         val paintCenter = when {
             hitEntity != null -> hitEntity.location
@@ -50,82 +48,106 @@ class ProjectileHitListener : Listener {
             else -> null
         } ?: return
 
-        val protectedBeforePaint = if (isBomb) {
-            collectProtectedBeforePaint(projectile.world, paintCenter, radius, game, shooterTeam)
-        } else {
-            emptySet()
+        val game = GameManager.playerGame[shooter.uniqueId]
+
+        if (game == null) {
+            if (!shooter.hasPermission("splatoon.admin")) return
+            if (hitEntity is Player) {
+                explosivePaintAdmin(radius, hitEntity.location, projectile.world, paintTeam)
+            } else {
+                explosivePaintAdmin(radius, paintCenter, projectile.world, paintTeam)
+            }
+            return
+        }
+
+        val shooterTeam = game.commands[shooter.uniqueId] ?: return
+        val shooterBaseTeam = baseTeam ?: shooterTeam
+
+        if (isBomb) {
+            val protectedVictims = mutableSetOf<UUID>()
+            val excludeBlocks = mutableSetOf<Block>()
+
+            projectile.world.getNearbyEntities(paintCenter, radius, radius, radius).forEach { e: Entity ->
+                if (e !is Player) return@forEach
+                if (GameManager.playerGame[e.uniqueId] != game) return@forEach
+
+                val victimTeam = game.commands[e.uniqueId] ?: return@forEach
+                if (victimTeam == shooterTeam) return@forEach
+
+                val ownBlocks = inkProtectedBlocks(e, game)
+                val protected = isSpawnSafe(e, game) || e.hasPotionEffect(PotionEffectType.INVISIBILITY) || ownBlocks.isNotEmpty()
+                if (protected) {
+                    protectedVictims.add(e.uniqueId)
+                    excludeBlocks.addAll(ownBlocks)
+                }
+            }
+
+            explosivePaint(radius, paintCenter, projectile.world, game, shooterId, paintTeam, shooterBaseTeam, excludeBlocks)
+
+            projectile.world.getNearbyEntities(paintCenter, radius, radius, radius).forEach { e: Entity ->
+                if (e !is Player) return@forEach
+                if (GameManager.playerGame[e.uniqueId] != game) return@forEach
+
+                val victimTeam = game.commands[e.uniqueId] ?: return@forEach
+                if (victimTeam == shooterTeam) return@forEach
+                if (protectedVictims.contains(e.uniqueId)) return@forEach
+
+                applyInkDamage(e, game, shooterId, shooterTeam, paintTeam, shooterBaseTeam, isBomb = true)
+            }
+            return
         }
 
         if (hitEntity is Player) {
             val victim = hitEntity
-            if (GameManager.playerGame[victim.uniqueId] == game) {
+            val victimGame = GameManager.playerGame[victim.uniqueId]
+            if (victimGame != null && victimGame == game) {
                 val victimTeam = game.commands[victim.uniqueId]
                 if (victimTeam != null && victimTeam != shooterTeam) {
-                    val onOwn = isOnOwnColor(victim, game, victimTeam)
-                    val protected = isSpawnSafe(victim, game) || onOwn
+                    val ownBlocks = inkProtectedBlocks(victim, game)
+                    val protected = isSpawnSafe(victim, game) || victim.hasPotionEffect(PotionEffectType.INVISIBILITY) || ownBlocks.isNotEmpty()
 
-                    val exclude = if (onOwn) victim.location.clone().subtract(0.0, 1.0, 0.0).block else null
-                    explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam, exclude)
+                    explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam, shooterBaseTeam, ownBlocks)
 
-                    if (!isBomb) {
-                        if (!protected) {
-                            game.kills[shooterId] = (game.kills[shooterId] ?: 0) + 1
-                            splatAndRespawn(victim, game)
-                        }
-                    } else {
-                        applyBombAoE(projectile.world, victim.location, radius, game, shooterId, shooterTeam, protectedBeforePaint)
+                    if (!protected) {
+                        applyInkDamage(victim, game, shooterId, shooterTeam, paintTeam, shooterBaseTeam, isBomb = false)
                     }
                     return
                 }
             }
 
-            explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam)
-            if (isBomb) {
-                applyBombAoE(projectile.world, victim.location, radius, game, shooterId, shooterTeam, protectedBeforePaint)
-            }
+            explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam, shooterBaseTeam)
             return
         }
 
-        explosivePaint(radius, paintCenter, projectile.world, game, shooterId, paintTeam)
-        if (isBomb) {
-            applyBombAoE(projectile.world, paintCenter, radius, game, shooterId, shooterTeam, protectedBeforePaint)
-        }
+        explosivePaint(radius, paintCenter, projectile.world, game, shooterId, paintTeam, shooterBaseTeam)
     }
 
-    private fun collectProtectedBeforePaint(world: World, center: org.bukkit.Location, radius: Double, game: Game, shooterTeam: Int): Set<UUID> {
-        return world.getNearbyEntities(center, radius, radius, radius)
-            .asSequence()
-            .filterIsInstance<Player>()
-            .filter { GameManager.playerGame[it.uniqueId] == game }
-            .mapNotNull { p ->
-                val team = game.commands[p.uniqueId] ?: return@mapNotNull null
-                if (team == shooterTeam) return@mapNotNull null
-                val protected = isSpawnSafe(p, game) || isOnOwnColor(p, game, team)
-                if (protected) p.uniqueId else null
-            }
-            .toSet()
-    }
-
-    private fun applyBombAoE(
-        world: World,
-        center: org.bukkit.Location,
-        radius: Double,
+    private fun applyInkDamage(
+        victim: Player,
         game: Game,
         shooterId: UUID,
         shooterTeam: Int,
-        protectedBeforePaint: Set<UUID>
+        paintTeam: Int,
+        shooterBaseTeam: Int,
+        isBomb: Boolean
     ) {
-        world.getNearbyEntities(center, radius, radius, radius).forEach { e: Entity ->
-            if (e !is Player) return@forEach
-            if (GameManager.playerGame[e.uniqueId] != game) return@forEach
+        val victimTeam = game.commands[victim.uniqueId] ?: return
+        if (victimTeam == shooterTeam) return
 
-            val victimTeam = game.commands[e.uniqueId] ?: return@forEach
-            if (victimTeam == shooterTeam) return@forEach
-            if (protectedBeforePaint.contains(e.uniqueId)) return@forEach
+        val current = game.inkHp[victim.uniqueId] ?: game.maxInkHp
+        val next = current - 1
 
-            game.kills[shooterId] = (game.kills[shooterId] ?: 0) + 1
-            splatAndRespawn(e, game)
+        if (next > 0) {
+            game.inkHp[victim.uniqueId] = next
+            return
         }
+
+        game.kills[shooterId] = (game.kills[shooterId] ?: 0) + 1
+
+        val killRadius = if (isBomb) 4.0 else 3.0
+        explosivePaint(killRadius, victim.location, victim.world, game, shooterId, paintTeam, shooterBaseTeam)
+
+        splatAndRespawn(victim, game)
     }
 
     private fun isSpawnSafe(player: Player, game: Game): Boolean {
@@ -142,10 +164,27 @@ class ProjectileHitListener : Listener {
         return distSq <= spawnProtectionRadiusSq
     }
 
-    private fun isOnOwnColor(player: Player, game: Game, team: Int): Boolean {
-        val ownMat = game.commandColors[team] ?: return false
-        val under = player.location.clone().subtract(0.0, 1.0, 0.0).block
-        return under.type == ownMat
+    private fun inkProtectedBlocks(player: Player, game: Game): Set<Block> {
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return emptySet()
+
+        val team = game.commands[player.uniqueId] ?: return emptySet()
+        val mat = game.commandColors[team] ?: return emptySet()
+
+        val loc = player.location
+        val y = loc.blockY - 1
+
+        val blocks = mutableSetOf<Block>()
+        for (dx in listOf(-0.25, 0.0, 0.25)) {
+            for (dz in listOf(-0.25, 0.0, 0.25)) {
+                val b = loc.world.getBlockAt(
+                    floor(loc.x + dx).toInt(),
+                    y,
+                    floor(loc.z + dz).toInt()
+                )
+                if (b.type == mat) blocks.add(b)
+            }
+        }
+        return blocks
     }
 
     private fun splatAndRespawn(player: Player, game: Game) {
@@ -160,7 +199,9 @@ class ProjectileHitListener : Listener {
         player.foodLevel = 20
         player.saturation = 20f
 
+        game.inkHp[player.uniqueId] = game.maxInkHp
         game.setSpawnProtection(player.uniqueId, 4_000)
+
         player.addPotionEffect(PotionEffect(PotionEffectType.RESISTANCE, 60, 10, false, false, false))
         player.noDamageTicks = 60
     }
@@ -181,17 +222,17 @@ class ProjectileHitListener : Listener {
         game: Game,
         shooterId: UUID,
         paintTeam: Int,
-        excludeBlock: Block? = null
+        shooterBaseTeam: Int,
+        excludeBlocks: Set<Block> = emptySet()
     ) {
-        val excludeX = excludeBlock?.x
-        val excludeY = excludeBlock?.y
-        val excludeZ = excludeBlock?.z
+        val exclude = HashSet<String>()
+        excludeBlocks.forEach { b -> exclude.add("${b.x},${b.y},${b.z}") }
 
         val blocks = mutableListOf<Block>()
         for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
             for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
                 for (z in roundFromZero(location.z - r)..roundFromZero(location.z + r)) {
-                    if (excludeX != null && x == excludeX && y == excludeY && z == excludeZ) continue
+                    if (exclude.contains("$x,$y,$z")) continue
                     val b = world.getBlockAt(x, y, z)
                     if (b.type != Material.AIR && b.location.distance(location) <= r) blocks.add(b)
                 }
@@ -222,8 +263,50 @@ class ProjectileHitListener : Listener {
 
             b.type = newMat
 
-            game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + 1
+            val delta = when {
+                paintTeam == shooterBaseTeam && oldTeam != shooterBaseTeam -> 1
+                paintTeam != shooterBaseTeam && oldTeam == shooterBaseTeam -> -1
+                else -> 0
+            }
+            if (delta != 0) {
+                game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + delta
+            }
             game.paintedCommand[paintTeam] = (game.paintedCommand[paintTeam] ?: 0) + 1
+        }
+    }
+
+    private fun explosivePaintAdmin(r: Double, location: org.bukkit.Location, world: World, paintTeam: Int) {
+        val blocks = mutableListOf<Block>()
+        for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
+            for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
+                for (z in roundFromZero(location.z - r)..roundFromZero(location.z + r)) {
+                    val b = world.getBlockAt(x, y, z)
+                    if (b.type != Material.AIR && b.location.distance(location) <= r) blocks.add(b)
+                }
+            }
+        }
+
+        val paintable = setOf(
+            Material.WHITE_CONCRETE,
+            Material.RED_CONCRETE,
+            Material.YELLOW_CONCRETE,
+            Material.GREEN_CONCRETE,
+            Material.BLUE_CONCRETE
+        )
+
+        val teamColors = mapOf(
+            0 to Material.RED_CONCRETE,
+            1 to Material.YELLOW_CONCRETE,
+            2 to Material.GREEN_CONCRETE,
+            3 to Material.BLUE_CONCRETE
+        )
+
+        val newMat = teamColors[paintTeam] ?: Material.WHITE_CONCRETE
+
+        for (b in blocks) {
+            if (!paintable.contains(b.type)) continue
+            if (b.type == newMat) continue
+            b.type = newMat
         }
     }
 
