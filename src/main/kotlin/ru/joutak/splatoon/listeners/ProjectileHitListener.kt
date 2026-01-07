@@ -4,6 +4,7 @@ import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.World
 import org.bukkit.block.Block
+import org.bukkit.entity.Entity
 import org.bukkit.entity.EntityType
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -24,81 +25,107 @@ class ProjectileHitListener : Listener {
 
     @EventHandler
     fun projectileHitEvent(event: ProjectileHitEvent) {
-        val entity = event.entity
-        if (entity.type != EntityType.SNOWBALL) return
+        val projectile = event.entity
+        if (projectile.type != EntityType.SNOWBALL) return
 
-        val shooterUuid = getShooterUuid(entity.getMetadata("shooterId").firstOrNull()?.asString())
-        val shooter = if (shooterUuid != null) Bukkit.getPlayer(shooterUuid) else null
-        if (shooter == null) return
+        val shooterId = getShooterUuid(projectile.getMetadata("shooterId").firstOrNull()?.asString()) ?: return
+        val shooter = Bukkit.getPlayer(shooterId) ?: return
 
         val game = GameManager.playerGame[shooter.uniqueId] ?: return
         val shooterTeam = game.commands[shooter.uniqueId] ?: return
 
+        if (!projectile.hasMetadata("paintKey")) return
 
-        if (!entity.hasMetadata("paintKey")) return
-
-        val block = event.hitBlock
+        val hitBlock = event.hitBlock
+        val hitFace = event.hitBlockFace
         val hitEntity = event.hitEntity
-        val blockface = event.hitBlockFace
 
-        val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt()
-            ?: (game.commands[shooter.uniqueId] ?: return)
-
-        val isBomb = entity.hasMetadata("bombKey")
+        val paintTeam = projectile.getMetadata("paintTeam").firstOrNull()?.asInt() ?: (game.commands[shooter.uniqueId] ?: return)
+        val isBomb = projectile.hasMetadata("bombKey")
         val radius = if (isBomb) 5.0 else 1.5
 
-        if (hitEntity != null && hitEntity is Player) {
-            val victim = hitEntity
-            val victimGame = GameManager.playerGame[victim.uniqueId]
-            if (victimGame != null && victimGame == game) {
-                val victimTeam = game.commands[victim.uniqueId]
-                if (victimTeam != null && victimTeam != shooterTeam) {
-                    if (!isSpawnSafe(victim, game)) {
-                        if (!isInkSafe(victim, game)) {
-                            game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
-                            splatAndRespawn(victim, game)
-                        }
-                    }
-                }
-            }
-            explosivePaint(radius, victim.location, entity.world, game, shooter.uniqueId, paintTeam)
+        val paintCenter = when {
+            hitEntity != null -> hitEntity.location
+            hitBlock != null && hitFace != null -> hitBlock.getRelative(hitFace).location
+            else -> null
+        } ?: return
+
+        val protectedBeforePaint = if (isBomb) {
+            collectProtectedBeforePaint(projectile.world, paintCenter, radius, game, shooterTeam)
         } else {
-            if (block == null || blockface == null) return
-            explosivePaint(radius, block.getRelative(blockface).location, entity.world, game, shooter.uniqueId, paintTeam)
+            emptySet()
         }
 
-        if (isBomb) {
-            val center = if (hitEntity != null) hitEntity.location else (block?.getRelative(blockface!!)?.location)
-            if (center != null) {
-                entity.world.getNearbyEntities(center, radius, radius, radius).forEach { e ->
-                    if (e is Player) {
-                        val victimGame = GameManager.playerGame[e.uniqueId]
-                        if (victimGame != null && victimGame == game) {
-                            val victimTeam = game.commands[e.uniqueId]
-                            if (victimTeam != null && victimTeam != shooterTeam) {
-                                if (!isSpawnSafe(e, game)) {
-                                    if (!isInkSafe(e, game)) {
-                                        game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
-                                        splatAndRespawn(e, game)
-                                    }
-                                }
-                            }
+        if (hitEntity is Player) {
+            val victim = hitEntity
+            if (GameManager.playerGame[victim.uniqueId] == game) {
+                val victimTeam = game.commands[victim.uniqueId]
+                if (victimTeam != null && victimTeam != shooterTeam) {
+                    val onOwn = isOnOwnColor(victim, game, victimTeam)
+                    val protected = isSpawnSafe(victim, game) || onOwn
+
+                    val exclude = if (onOwn) victim.location.clone().subtract(0.0, 1.0, 0.0).block else null
+                    explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam, exclude)
+
+                    if (!isBomb) {
+                        if (!protected) {
+                            game.kills[shooterId] = (game.kills[shooterId] ?: 0) + 1
+                            splatAndRespawn(victim, game)
                         }
+                    } else {
+                        applyBombAoE(projectile.world, victim.location, radius, game, shooterId, shooterTeam, protectedBeforePaint)
                     }
+                    return
                 }
             }
+
+            explosivePaint(radius, victim.location, projectile.world, game, shooterId, paintTeam)
+            if (isBomb) {
+                applyBombAoE(projectile.world, victim.location, radius, game, shooterId, shooterTeam, protectedBeforePaint)
+            }
+            return
+        }
+
+        explosivePaint(radius, paintCenter, projectile.world, game, shooterId, paintTeam)
+        if (isBomb) {
+            applyBombAoE(projectile.world, paintCenter, radius, game, shooterId, shooterTeam, protectedBeforePaint)
         }
     }
 
-    private fun isInkSafe(player: Player, game: Game): Boolean {
-        val team = game.commands[player.uniqueId] ?: return false
-        val mat = game.commandColors[team] ?: return false
+    private fun collectProtectedBeforePaint(world: World, center: org.bukkit.Location, radius: Double, game: Game, shooterTeam: Int): Set<UUID> {
+        return world.getNearbyEntities(center, radius, radius, radius)
+            .asSequence()
+            .filterIsInstance<Player>()
+            .filter { GameManager.playerGame[it.uniqueId] == game }
+            .mapNotNull { p ->
+                val team = game.commands[p.uniqueId] ?: return@mapNotNull null
+                if (team == shooterTeam) return@mapNotNull null
+                val protected = isSpawnSafe(p, game) || isOnOwnColor(p, game, team)
+                if (protected) p.uniqueId else null
+            }
+            .toSet()
+    }
 
-        val feet = player.location.block.type
-        val below = player.location.clone().subtract(0.0, 1.0, 0.0).block.type
-        val onInk = feet == mat || below == mat
+    private fun applyBombAoE(
+        world: World,
+        center: org.bukkit.Location,
+        radius: Double,
+        game: Game,
+        shooterId: UUID,
+        shooterTeam: Int,
+        protectedBeforePaint: Set<UUID>
+    ) {
+        world.getNearbyEntities(center, radius, radius, radius).forEach { e: Entity ->
+            if (e !is Player) return@forEach
+            if (GameManager.playerGame[e.uniqueId] != game) return@forEach
 
-        return onInk
+            val victimTeam = game.commands[e.uniqueId] ?: return@forEach
+            if (victimTeam == shooterTeam) return@forEach
+            if (protectedBeforePaint.contains(e.uniqueId)) return@forEach
+
+            game.kills[shooterId] = (game.kills[shooterId] ?: 0) + 1
+            splatAndRespawn(e, game)
+        }
     }
 
     private fun isSpawnSafe(player: Player, game: Game): Boolean {
@@ -113,6 +140,12 @@ class ProjectileHitListener : Listener {
         val dz = player.location.z - spawn.z
         val distSq = dx * dx + dy * dy + dz * dz
         return distSq <= spawnProtectionRadiusSq
+    }
+
+    private fun isOnOwnColor(player: Player, game: Game, team: Int): Boolean {
+        val ownMat = game.commandColors[team] ?: return false
+        val under = player.location.clone().subtract(0.0, 1.0, 0.0).block
+        return under.type == ownMat
     }
 
     private fun splatAndRespawn(player: Player, game: Game) {
@@ -141,11 +174,24 @@ class ProjectileHitListener : Listener {
         }
     }
 
-    private fun explosivePaint(r: Double, location: org.bukkit.Location, world: World, game: Game, shooterId: UUID, paintTeam: Int) {
+    private fun explosivePaint(
+        r: Double,
+        location: org.bukkit.Location,
+        world: World,
+        game: Game,
+        shooterId: UUID,
+        paintTeam: Int,
+        excludeBlock: Block? = null
+    ) {
+        val excludeX = excludeBlock?.x
+        val excludeY = excludeBlock?.y
+        val excludeZ = excludeBlock?.z
+
         val blocks = mutableListOf<Block>()
         for (x in roundFromZero(location.x - r)..roundFromZero(location.x + r)) {
             for (y in roundFromZero(location.y - r)..roundFromZero(location.y + r)) {
                 for (z in roundFromZero(location.z - r)..roundFromZero(location.z + r)) {
+                    if (excludeX != null && x == excludeX && y == excludeY && z == excludeZ) continue
                     val b = world.getBlockAt(x, y, z)
                     if (b.type != Material.AIR && b.location.distance(location) <= r) blocks.add(b)
                 }
@@ -165,9 +211,6 @@ class ProjectileHitListener : Listener {
 
         val newMat = game.commandColors[paintTeam] ?: Material.WHITE_CONCRETE
 
-        val baseTeam = game.commands[shooterId]
-        val delta = if (baseTeam != null && baseTeam == paintTeam) 1 else -1
-
         for (b in blocks) {
             if (!paintable.contains(b.type)) continue
             if (b.type == newMat) continue
@@ -179,7 +222,7 @@ class ProjectileHitListener : Listener {
 
             b.type = newMat
 
-            game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + delta
+            game.paintedPerson[shooterId] = (game.paintedPerson[shooterId] ?: 0) + 1
             game.paintedCommand[paintTeam] = (game.paintedCommand[paintTeam] ?: 0) + 1
         }
     }

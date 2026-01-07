@@ -24,7 +24,6 @@ import ru.joutak.splatoon.SplatoonPlugin
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
-import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -621,7 +620,7 @@ class Game(var worldName: String) {
                     .filter { it.value == team }
                     .map { it.key }
 
-                val teamTotal = teamPlayers.sumOf { max(paintedPerson[it] ?: 0, 0) }
+                val teamTotal = teamPlayers.sumOf { maxOf(0, paintedPerson[it] ?: 0) }
 
                 val sorted = teamPlayers
                     .map { it to (paintedPerson[it] ?: 0) }
@@ -677,12 +676,6 @@ class Game(var worldName: String) {
         val name = if (nameRaw.length > 10) nameRaw.substring(0, 10) else nameRaw
         val percent = if (value <= 0 || teamTotal <= 0) 0 else ((value.toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
         val k = kills[uuid] ?: 0
-        val valueColor = when {
-            value > 0 -> "§f"
-            value < 0 -> "§c"
-            else -> "§7"
-        }
-        val percentPart = if (value > 0) " §7(${percent}%)" else ""
-        return "§b$name: ${valueColor}$value${percentPart} §c✦$k"
+        return "§b$name: §f$value §7(${percent}%) §c✦$k"
     }
 }

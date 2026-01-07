@@ -23,60 +23,65 @@ class BacillusHitListener(private val plugin: Plugin) : Listener {
 
     @EventHandler
     fun onSwing(event: PlayerAnimationEvent) {
-        val player = event.player
-        val game = GameManager.playerGame[player.uniqueId] ?: return
+        val damager = event.player
 
-        val hand = findBacillus(player) ?: return
+        val bacillusHand = findBacillus(damager) ?: return
 
         val now = System.currentTimeMillis()
-        val last = useCooldown[player.uniqueId]
+        val last = useCooldown[damager.uniqueId]
         if (last != null && now - last < 250) return
 
-        val target = raytracePlayer(player, 3.2) ?: return
-        if (GameManager.playerGame[target.uniqueId] != game) return
+        val target = raytracePlayer(damager, 3.2) ?: return
 
-        val attackerTeam = game.commands[player.uniqueId] ?: return
-        val victimTeam = game.commands[target.uniqueId] ?: return
-        if (attackerTeam == victimTeam) return
-
-        if (isSpawnSafe(target, game)) return
-
-        useCooldown[player.uniqueId] = now
-        game.applyAmmoOverride(target.uniqueId, attackerTeam, 5_000)
-        consumeBacillus(player, hand)
+        if (tryApplyBacillus(damager, target, bacillusHand)) {
+            useCooldown[damager.uniqueId] = now
+            consumeBacillus(damager, bacillusHand)
+        }
     }
 
     @EventHandler
-    fun onDamage(event: EntityDamageByEntityEvent) {
+    fun onHit(event: EntityDamageByEntityEvent) {
         val damager = event.damager
         val entity = event.entity
+
         if (damager !is Player) return
         if (entity !is Player) return
 
-        val game = GameManager.playerGame[damager.uniqueId] ?: return
-        if (GameManager.playerGame[entity.uniqueId] != game) return
+        val hand = findBacillus(damager) ?: return
 
-        val attackerTeam = game.commands[damager.uniqueId] ?: return
-        val victimTeam = game.commands[entity.uniqueId] ?: return
-        if (attackerTeam == victimTeam) return
-
-        if (findBacillus(damager) == null) return
-
-        event.isCancelled = true
-        event.damage = 0.0
+        if (tryApplyBacillus(damager, entity, hand)) {
+            event.isCancelled = true
+            event.damage = 0.0
+        }
     }
 
-    private fun raytracePlayer(player: Player, maxDistance: Double): Player? {
-        val start = player.eyeLocation
-        val dir = start.direction
-        val world = player.world
+    private fun tryApplyBacillus(damager: Player, victim: Player, hand: BacillusHand): Boolean {
+        val game = GameManager.playerGame[damager.uniqueId]
+        val victimGame = GameManager.playerGame[victim.uniqueId]
 
-        val res = world.rayTraceEntities(start, dir, maxDistance, 0.3) { e ->
-            e is Player && e.uniqueId != player.uniqueId
-        } ?: return null
+        if (game != null && victimGame == game) {
+            val attackerTeam = game.commands[damager.uniqueId] ?: return false
+            val victimTeam = game.commands[victim.uniqueId] ?: return false
+            if (attackerTeam == victimTeam) return false
 
-        val hit = res.hitEntity ?: return null
-        return hit as? Player
+            if (isSpawnSafe(victim, game)) return false
+
+            game.applyAmmoOverride(victim.uniqueId, attackerTeam, 5_000)
+            return true
+        }
+
+        val item = if (hand == BacillusHand.MAIN) damager.inventory.itemInMainHand else damager.inventory.itemInOffHand
+        val meta = item.itemMeta
+        val pdc = meta?.persistentDataContainer
+        val adminAllowed = damager.hasPermission("splatoon.admin") && pdc != null && pdc.has(
+            NamespacedKey(plugin, "splatoonAdmin"),
+            PersistentDataType.BOOLEAN
+        )
+        if (!adminAllowed) return false
+
+        val attackerTeam = pdc?.get(NamespacedKey(plugin, "adminTeam"), PersistentDataType.INTEGER) ?: 0
+        GameManager.setAdminAmmoOverride(victim.uniqueId, attackerTeam, 5_000)
+        return true
     }
 
     private fun isSpawnSafe(player: Player, game: Game): Boolean {
@@ -93,18 +98,29 @@ class BacillusHitListener(private val plugin: Plugin) : Listener {
         return distSq <= spawnProtectionRadiusSq
     }
 
+    private fun raytracePlayer(player: Player, maxDistance: Double): Player? {
+        val start = player.eyeLocation
+        val dir = start.direction
+
+        val res = player.world.rayTraceEntities(start, dir, maxDistance, 0.3) { e ->
+            e is Player && e.uniqueId != player.uniqueId
+        } ?: return null
+
+        return res.hitEntity as? Player
+    }
+
     private fun findBacillus(player: Player): BacillusHand? {
         val key = NamespacedKey(plugin, "Bacillus")
-
-        val off = player.inventory.itemInOffHand
-        if (off.type == Material.AMETHYST_SHARD && off.hasItemMeta() &&
-            off.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
-        ) return BacillusHand.OFF
 
         val main = player.inventory.itemInMainHand
         if (main.type == Material.AMETHYST_SHARD && main.hasItemMeta() &&
             main.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
         ) return BacillusHand.MAIN
+
+        val off = player.inventory.itemInOffHand
+        if (off.type == Material.AMETHYST_SHARD && off.hasItemMeta() &&
+            off.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
+        ) return BacillusHand.OFF
 
         return null
     }

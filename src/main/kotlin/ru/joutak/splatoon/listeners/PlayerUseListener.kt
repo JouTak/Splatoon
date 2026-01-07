@@ -15,6 +15,7 @@ import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
+import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.scripts.GameManager
 
 class PlayerUseListener(private val plugin: Plugin) : Listener {
@@ -35,6 +36,10 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
 
         val game = GameManager.playerGame[player.uniqueId]
 
+        val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(
+            NamespacedKey(plugin, "splatoonAdmin"), PersistentDataType.BOOLEAN
+        )
+
         val commandColors = mapOf(
             0 to "Red",
             3 to "Blue",
@@ -46,9 +51,18 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN
             )
         ) {
-            if (game == null) return
-            val baseTeam = game.commands[player.uniqueId] ?: return
-            val paintTeam = game.getAmmoTeam(player.uniqueId) ?: baseTeam
+            if (game == null && !isAdminUse) return
+
+            val baseTeam = if (game != null) {
+                game.commands[player.uniqueId] ?: return
+            } else {
+                pdc.get(NamespacedKey(plugin, "adminTeam"), PersistentDataType.INTEGER) ?: 0
+            }
+            val paintTeam = if (game != null) {
+                game.getAmmoTeam(player.uniqueId) ?: baseTeam
+            } else {
+                GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
+            }
 
             val colorName = commandColors[paintTeam] ?: return
             val projectileItem = createProjectileItem(colorName)
@@ -65,6 +79,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+                setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
                 setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
             }
             return
@@ -74,9 +89,18 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN
             )
         ) {
-            if (game == null) return
-            val baseTeam = game.commands[player.uniqueId] ?: return
-            val paintTeam = game.getAmmoTeam(player.uniqueId) ?: baseTeam
+            if (game == null && !isAdminUse) return
+
+            val baseTeam = if (game != null) {
+                game.commands[player.uniqueId] ?: return
+            } else {
+                pdc.get(NamespacedKey(plugin, "adminTeam"), PersistentDataType.INTEGER) ?: 0
+            }
+            val paintTeam = if (game != null) {
+                game.getAmmoTeam(player.uniqueId) ?: baseTeam
+            } else {
+                GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
+            }
 
             val colorName = commandColors[paintTeam] ?: "Bomb"
             val projectileItem = createProjectileItem(colorName)
@@ -94,10 +118,13 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
                 setMetadata("bombKey", FixedMetadataValue(plugin, 1))
                 setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+                setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
                 setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
             }
 
-            player.inventory.setItemInMainHand(null)
+            if (!isAdminUse) {
+                player.inventory.setItemInMainHand(null)
+            }
         }
     }
 
