@@ -21,6 +21,9 @@ class PlayerToggleSneakListener : Listener {
     @EventHandler
     fun playerToggleSneakEvent(event: PlayerToggleSneakEvent) {
         val player = event.player
+
+        val game = GameManager.playerGame[player.uniqueId] ?: return
+
         if (tasks.containsKey(player.uniqueId)) {
             Bukkit.getScheduler().cancelTask(tasks[player.uniqueId]!!)
             tasks.remove(player.uniqueId)
@@ -38,7 +41,7 @@ class PlayerToggleSneakListener : Listener {
                                 player.location.z + z.toDouble() / 10
                             ).block.getRelative(
                                 BlockFace.DOWN
-                            ).type == GameManager.playerGame[player.uniqueId]!!.commandColors[GameManager.playerGame[player.uniqueId]!!.commands[player.uniqueId]]
+                            ).type == game.commandColors[game.commands[player.uniqueId]]
                         ) {
                             player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 2, 18))
                             player.addPotionEffect(PotionEffect(PotionEffectType.INVISIBILITY, 2, 1))
