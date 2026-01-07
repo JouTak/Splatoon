@@ -3,12 +3,12 @@ version: ${VERSION}
 api-version: ${MINECRAFT_VERSION}
 main: ru.joutak.splatoon.SplatoonPlugin
 description: 'splatoon'
-authors: ['technosimp']
-contributors: ['technosimp']
+authors: ['Saldaw', 'technosimp', ]
+contributors: ['EnderDissa']
 website: ${WEBSITE}
 commands:
   splatoon:
-    usage: "/splatoon <ник1> <ник2> ..."
+    usage: "only with miniGAMES API"
 
 depend: []
 libraries:
