@@ -11,8 +11,8 @@ import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.BacillusHitListener
-import ru.joutak.splatoon.commands.AdminGiveItemCommand
 import ru.joutak.splatoon.scripts.GameManager
+import ru.joutak.splatoon.commands.SplatoonCommand
 import java.io.File
 
 class SplatoonPlugin : JavaPlugin() {
@@ -87,9 +87,12 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
 
-        getCommand("splatgun")?.setExecutor(AdminGiveItemCommand(this, AdminGiveItemCommand.Type.GUN))
-        getCommand("splatbomb")?.setExecutor(AdminGiveItemCommand(this, AdminGiveItemCommand.Type.BOMB))
-        getCommand("bacillus")?.setExecutor(AdminGiveItemCommand(this, AdminGiveItemCommand.Type.BACILLUS))
+        val cmd = getCommand("splatoon")
+        if (cmd != null) {
+            val executor = SplatoonCommand(this)
+            cmd.setExecutor(executor)
+            cmd.tabCompleter = executor
+        }
 
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 

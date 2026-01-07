@@ -15,6 +15,8 @@ object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
     val arenas: MutableMap<String, World> = mutableMapOf()
 
+    private val adminAmmoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
+
     private val templateWorlds: MutableSet<String> = mutableSetOf()
 
     fun registerTemplateWorld(worldName: String) {
@@ -42,6 +44,19 @@ object GameManager {
             game.commands.remove(uuid)
             game.paintedPerson.remove(uuid)
         }
+    }
+
+    fun setAdminAmmoOverride(uuid: UUID, team: Int, durationMs: Long) {
+        adminAmmoOverride[uuid] = team to (System.currentTimeMillis() + durationMs)
+    }
+
+    fun getAdminAmmoTeam(uuid: UUID, baseTeam: Int): Int {
+        val override = adminAmmoOverride[uuid]
+        if (override != null) {
+            if (System.currentTimeMillis() < override.second) return override.first
+            adminAmmoOverride.remove(uuid)
+        }
+        return baseTeam
     }
 
     fun isLikelyCloneWorld(worldName: String): Boolean {
