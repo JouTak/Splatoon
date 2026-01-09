@@ -1,30 +1,58 @@
-map_name: "sp_arena"
-boost_locations:
-  - [0,0,0]
-lobby_name: "world"
+lobby:
+  world: "world"
+
+game:
+  duration_seconds: 300
+  return_to_lobby_delay_seconds: 5
+  scoreboard_update_ticks: 10
+  actionbar_update_ticks: 5
+
+ink:
+  max_hp: 3
+
+spawn_protection:
+  radius_blocks: 7.0
+  after_respawn_seconds: 4
+  resistance_duration_ticks: 60
+  resistance_amplifier: 10
+  no_damage_ticks: 60
+
+weapons:
+  gun:
+    velocity: 1.4
+    paint_radius: 1.5
+    kill_paint_radius: 3.0
+  bomb:
+    velocity: 1.1
+    paint_radius: 5.0
+    kill_paint_radius: 5.0
+
+bacillus:
+  duration_seconds: 5
+  range_blocks: 3.2
+  cooldown_ms: 250
+
+boosts:
+  enabled: true
+  initial_delay_seconds: 0
+  min_interval_seconds: 18
+  max_interval_seconds: 39
+  bomb_percent: 70
+  locations:
+    - [0.0, 200.0, 0.0]
+
+movement:
+  sneak_on_ink:
+    enabled: true
+    scan_steps: 3
+    scan_step_blocks: 0.1
+    speed_amplifier: 18
+    invisibility_amplifier: 1
+    effect_duration_ticks: 2
+    task_period_ticks: 1
 
 arenas:
-  - id: arena-1
-    world: sp_arena
+  - id: "arena-1"
+    world: "sp_arena"
     teamCount: 2
     playersPerTeam: 3
-  - id: arena-2
-    world: sp_arena_2
-    teamCount: 3
-    playersPerTeam: 2
-
-spartakiad:
-  enabled: false
-  minigame_name: "minigame"
-  attempts: 5
-  team_mode: false
-
-uuid:
-  use_libre_login: false
-
-storage:
-  debounce_millis: 500
-  close_timeout_millis: 5000
-
-teams:
-  players_file: "teams.txt"

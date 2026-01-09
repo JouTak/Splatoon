@@ -40,6 +40,8 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             NamespacedKey(plugin, "splatoonAdmin"), PersistentDataType.BOOLEAN
         )
 
+        val settings = SplatoonPlugin.instance.settings
+
         val commandColors = mapOf(
             0 to "Red",
             3 to "Blue",
@@ -74,7 +76,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(1.4)
+                velocity = player.location.direction.multiply(settings.weapons.gun.velocity)
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
@@ -112,7 +114,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(1.1)
+                velocity = player.location.direction.multiply(settings.weapons.bomb.velocity)
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))

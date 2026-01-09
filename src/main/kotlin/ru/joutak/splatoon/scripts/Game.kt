@@ -22,6 +22,7 @@ import ru.joutak.minigames.domain.GameResult
 import ru.joutak.minigames.domain.Player as MiniPlayer
 import ru.joutak.minigames.storage.GameResultStorage
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
@@ -29,7 +30,11 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
-class Game(var worldName: String) {
+class Game(
+    val worldName: String,
+    private val settings: SplatoonSettings,
+    private val boostLocations: List<List<Double>>
+) {
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
     val kills: MutableMap<UUID, Int> = mutableMapOf()
@@ -49,7 +54,7 @@ class Game(var worldName: String) {
     private var actionBarTask: BukkitTask? = null
 
     private var timeLeft = 0
-    private val totalTime = 5 * 60
+    private val totalTime = settings.game.durationSeconds
 
     private var bossBar: BossBar? = null
     private var activeTeams: List<Int> = listOf()
@@ -62,7 +67,7 @@ class Game(var worldName: String) {
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
     val spawnProtectedUntil: MutableMap<UUID, Long> = mutableMapOf()
 
-    val maxInkHp: Int = 3
+    val maxInkHp: Int = settings.ink.maxHp
     private val inkHp: MutableMap<UUID, Int> = mutableMapOf()
 
     fun shutdownGame() {
@@ -99,7 +104,7 @@ class Game(var worldName: String) {
         }
     }
 
-    fun startGame(worldName: String) {
+    fun startGame() {
         activeTeams = commands.values.toSet().sorted()
 
         commands.keys.forEach { uuid ->
@@ -107,13 +112,14 @@ class Game(var worldName: String) {
             val player = Bukkit.getPlayer(uuid)
             if (player != null) {
                 player.inventory.clear()
-                player.teleport(Bukkit.getWorld(this.worldName)!!.spawnLocation)
+                val w = Bukkit.getWorld(worldName)
+                if (w != null) player.teleport(w.spawnLocation)
             }
         }
-        startCountdown(worldName)
+        startCountdown()
     }
 
-    fun endGame(worldName: String) {
+    fun endGame() {
         gameTimerTask?.cancel()
         countdownTask?.cancel()
         scoreboardUpdateTask?.cancel()
@@ -167,9 +173,11 @@ class Game(var worldName: String) {
         )
         GameResultStorage.save(result)
 
+        val delayTicks = (settings.game.returnToLobbyDelaySeconds * 20L).coerceAtLeast(0L)
+
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            val lobbyLocation = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
-            if (lobbyLocation == null) {
+            val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
+            if (lobbyWorld == null) {
                 SplatoonPlugin.instance.logger.severe("Не удалось найти мир лобби: ${SplatoonPlugin.instance.lobbyName}. Удаление игры остановлено.")
                 GameManager.deleteGame(this.worldName, this)
                 return@Runnable
@@ -186,12 +194,12 @@ class Game(var worldName: String) {
                     player.activePotionEffects.forEach { effect ->
                         player.removePotionEffect(effect.type)
                     }
-                    player.teleport(lobbyLocation.spawnLocation)
+                    player.teleport(lobbyWorld.spawnLocation)
                 }
             }
 
             GameManager.deleteGame(this.worldName, this)
-        }, 100L)
+        }, delayTicks)
     }
 
     private fun determineWinner(): Int {
@@ -206,7 +214,7 @@ class Game(var worldName: String) {
         return winningTeam
     }
 
-    private fun startCountdown(worldName: String) {
+    private fun startCountdown() {
         var countdown = 6
 
         countdownTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
@@ -282,7 +290,7 @@ class Game(var worldName: String) {
                     giveSplatGuns()
                     sendStartInstructions()
 
-                    startMainTimer(worldName)
+                    startMainTimer()
                     startBoostTimer()
                     startActionBarLoop()
 
@@ -294,12 +302,14 @@ class Game(var worldName: String) {
     }
 
     private fun sendStartInstructions() {
+        val bac = settings.bacillus.durationSeconds
+        val hp = settings.ink.maxHp
         commands.keys.forEach { id ->
             val p = Bukkit.getPlayer(id) ?: return@forEach
             p.sendMessage(Component.text("§6§lSplatoon §7— закрась арену своей командой и набери больше %!"))
-            p.sendMessage(Component.text("§f• §eПКМ пушкой §7— выстрел краской (3 ❤ — это ваши чернила-хп)"))
+            p.sendMessage(Component.text("§f• §eПКМ пушкой §7— выстрел краской (${hp} ❤ — это ваши чернила-хп)"))
             p.sendMessage(Component.text("§f• §eПКМ бомбой §7— взрывная покраска"))
-            p.sendMessage(Component.text("§f• §dБацилла §7(Bacillus) — §eударь игрока§7, он будет стрелять вашим цветом 5с"))
+            p.sendMessage(Component.text("§f• §dБацилла §7(Bacillus) — §eударь игрока§7, он будет стрелять вашим цветом ${bac}с"))
             p.sendMessage(Component.text("§f• §aНа своей краске §7вы не теряете ❤ от попаданий"))
         }
     }
@@ -311,7 +321,7 @@ class Game(var worldName: String) {
                 val p = Bukkit.getPlayer(id) ?: return@forEach
                 p.sendActionBar(buildActionBar(p))
             }
-        }, 0L, 5L)
+        }, 0L, settings.game.actionBarUpdateTicks)
     }
 
     private fun buildActionBar(player: Player): Component {
@@ -395,6 +405,7 @@ class Game(var worldName: String) {
     }
 
     private fun showWinnerAnnouncement(winner: Int) {
+        val sec = settings.game.returnToLobbyDelaySeconds
         showTitleToAllPlayers(
             when (winner) {
                 0 -> Component.text("КРАСНЫЕ ПОБЕДИЛИ!", NamedTextColor.RED)
@@ -403,27 +414,36 @@ class Game(var worldName: String) {
                 2 -> Component.text("ЗЕЛЕНЫЕ ПОБЕДИЛИ!", NamedTextColor.GREEN)
                 else -> Component.text("НИЧЬЯ!", NamedTextColor.GOLD)
             },
-            Component.text("Возвращение в лобби через 5 секунд...", NamedTextColor.GRAY)
+            Component.text("Возвращение в лобби через ${sec}с...", NamedTextColor.GRAY)
         )
     }
 
     private fun startBoostTimer() {
-        boostTimerTask = Bukkit.getScheduler().runTaskTimer(
-            SplatoonPlugin.instance,
-            Runnable {
-                val w = Bukkit.getWorld(worldName) ?: return@Runnable
-                if (Random.nextInt(100) < 70) {
-                    giveSplatBomb(w)
-                } else {
-                    giveBacillus(w)
-                }
-            },
-            0L,
-            20L * 18 + Random.nextInt(21 * 20)
-        )
+        if (!settings.boosts.enabled) return
+        if (boostLocations.isEmpty()) return
+
+        boostTimerTask?.cancel()
+        val initialDelayTicks = settings.boosts.initialDelaySeconds * 20L
+        scheduleNextBoost(initialDelayTicks.coerceAtLeast(0L))
     }
 
-    private fun startMainTimer(worldName: String) {
+    private fun scheduleNextBoost(delayTicks: Long) {
+        boostTimerTask?.cancel()
+        boostTimerTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            val w = Bukkit.getWorld(worldName) ?: return@Runnable
+            val rolled = Random.nextInt(100)
+            if (rolled < settings.boosts.bombPercent) {
+                giveSplatBomb(w, boostLocations)
+            } else {
+                giveBacillus(w, boostLocations)
+            }
+
+            val nextDelay = settings.boosts.nextIntervalSeconds() * 20L
+            scheduleNextBoost(nextDelay.coerceAtLeast(1L))
+        }, delayTicks.coerceAtLeast(1L))
+    }
+
+    private fun startMainTimer() {
         timeLeft = totalTime
 
         val w = Bukkit.getWorld(worldName)
@@ -439,45 +459,43 @@ class Game(var worldName: String) {
             updateBossBar()
 
             if (timeLeft <= 0) {
-                endGame(worldName)
+                endGame()
                 return@Runnable
             }
 
-            when (timeLeft) {
-                60 -> {
-                    showTitleToAllPlayers(
-                        Component.text("Осталась 1 минута!", NamedTextColor.YELLOW),
-                        Component.empty()
-                    )
-                    playSoundToAllPlayers(
-                        Sound.sound(Key.key("block.note_block.bell"), Sound.Source.MASTER, 1.0f, 1.0f)
-                    )
-                }
+            if (timeLeft == 60 && totalTime >= 60) {
+                showTitleToAllPlayers(
+                    Component.text("Осталась 1 минута!", NamedTextColor.YELLOW),
+                    Component.empty()
+                )
+                playSoundToAllPlayers(
+                    Sound.sound(Key.key("block.note_block.bell"), Sound.Source.MASTER, 1.0f, 1.0f)
+                )
+            }
 
-                30 -> {
-                    showTitleToAllPlayers(
-                        Component.text("30 секунд!", NamedTextColor.GOLD),
-                        Component.empty()
-                    )
-                    playSoundToAllPlayers(
-                        Sound.sound(Key.key("block.note_block.bell"), Sound.Source.MASTER, 1.0f, 1.2f)
-                    )
-                }
+            if (timeLeft == 30 && totalTime >= 30) {
+                showTitleToAllPlayers(
+                    Component.text("30 секунд!", NamedTextColor.GOLD),
+                    Component.empty()
+                )
+                playSoundToAllPlayers(
+                    Sound.sound(Key.key("block.note_block.bell"), Sound.Source.MASTER, 1.0f, 1.2f)
+                )
+            }
 
-                3, 2, 1 -> {
-                    showTitleToAllPlayers(
-                        Component.text("$timeLeft", NamedTextColor.RED),
-                        Component.empty()
+            if (timeLeft in 3..1) {
+                showTitleToAllPlayers(
+                    Component.text("$timeLeft", NamedTextColor.RED),
+                    Component.empty()
+                )
+                playSoundToAllPlayers(
+                    Sound.sound(
+                        Key.key("block.note_block.pling"),
+                        Sound.Source.MASTER,
+                        1.0f,
+                        (1.0f + (10 - timeLeft) * 0.1f)
                     )
-                    playSoundToAllPlayers(
-                        Sound.sound(
-                            Key.key("block.note_block.pling"),
-                            Sound.Source.MASTER,
-                            1.0f,
-                            (1.0f + (10 - timeLeft) * 0.1f)
-                        )
-                    )
-                }
+                )
             }
 
             timeLeft--
@@ -485,7 +503,7 @@ class Game(var worldName: String) {
 
         scoreboardUpdateTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             updateAllPlayerScoreboards()
-        }, 0L, 10L)
+        }, 0L, settings.game.scoreboardUpdateTicks)
     }
 
     fun recalcPaintableBlocks(world: World) {

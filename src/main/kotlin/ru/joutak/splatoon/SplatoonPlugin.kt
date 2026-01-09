@@ -1,20 +1,19 @@
 package ru.joutak.splatoon
 
 import org.bukkit.Bukkit
-import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
 import ru.joutak.minigames.MiniGamesCore
 import ru.joutak.minigames.domain.GameInstanceConfig
 import ru.joutak.minigames.managers.MatchmakingManager
+import ru.joutak.splatoon.commands.SplatoonCommand
+import ru.joutak.splatoon.config.SplatoonSettings
+import ru.joutak.splatoon.listeners.BacillusHitListener
+import ru.joutak.splatoon.listeners.BoostPickupListener
 import ru.joutak.splatoon.listeners.PlayerSessionListener
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
-import ru.joutak.splatoon.listeners.BacillusHitListener
 import ru.joutak.splatoon.scripts.GameManager
-import ru.joutak.splatoon.commands.SplatoonCommand
-import ru.joutak.splatoon.listeners.BoostPickupListener
-import java.io.File
 
 class SplatoonPlugin : JavaPlugin() {
     companion object {
@@ -22,61 +21,53 @@ class SplatoonPlugin : JavaPlugin() {
         lateinit var instance: SplatoonPlugin
     }
 
-    var mapName = ""
-    var lobbyName = ""
-    val boostLocations: MutableList<List<Double>> = mutableListOf()
-    private lateinit var customConfig: YamlConfiguration
+    lateinit var settings: SplatoonSettings
+        private set
 
-    private fun loadConfig() {
-        val fx = File(dataFolder, "config.yml")
-        if (!fx.exists()) saveResource("config.yml", false)
-
-        customConfig = YamlConfiguration.loadConfiguration(fx)
-        mapName = customConfig.getString("map_name") ?: "sp_arena"
-        lobbyName = customConfig.getString("lobby_name") ?: "world"
-
-        val coordList = customConfig.getList("boost_locations") ?: emptyList<Any>()
-        for (item in coordList) {
-            if (item is List<*> && item.size == 3) {
-                try {
-                    val x = (item[0] as Number).toDouble()
-                    val y = (item[1] as Number).toDouble()
-                    val z = (item[2] as Number).toDouble()
-                    boostLocations.add(listOf(x, y, z))
-                } catch (e: Exception) {
-                    logger.warning("Invalid coordinate format: $item")
-                }
-            }
-        }
-
-        GameManager.registerTemplateWorld(mapName)
-    }
+    var lobbyName: String = "world"
+        private set
 
     private fun loadArenas() {
         val arenasList = mutableListOf<GameInstanceConfig>()
-        val arenas = customConfig.getMapList("arenas") ?: emptyList<Map<String, Any>>()
-        for (arena in arenas) {
+        val arenas = config.getMapList("arenas") ?: emptyList<Map<String, Any>>()
+
+        for (arenaAny in arenas) {
+            val arena = arenaAny as? Map<String, Any> ?: continue
             val id = arena["id"] as? String ?: continue
             val world = arena["world"] as? String ?: continue
             val teamCount = (arena["teamCount"] as? Int) ?: 2
             val playersPerTeam = (arena["playersPerTeam"] as? Int) ?: 3
+
+            val arenaBoostLocations = SplatoonSettings.readCoordinateTriplesFromArena(arena, logger)
+            val boostLocations = if (arenaBoostLocations.isNotEmpty()) arenaBoostLocations else settings.boosts.locations
+
+            val meta = mutableMapOf<String, Any>("world" to world)
+            if (boostLocations.isNotEmpty()) meta["boostLocations"] = boostLocations
+
             arenasList.add(
                 GameInstanceConfig(
                     id = id,
                     teamCount = teamCount,
                     playersPerTeam = playersPerTeam,
-                    meta = mapOf("world" to world)
+                    meta = meta
                 )
             )
+
             GameManager.registerTemplateWorld(world)
         }
+
         MatchmakingManager.loadInstances(arenasList)
     }
 
     override fun onEnable() {
         instance = this
 
-        loadConfig()
+        saveDefaultConfig()
+        reloadConfig()
+
+        settings = SplatoonSettings.load(config, logger)
+        lobbyName = settings.lobbyWorld
+
         MiniGamesCore.initialize(this)
         loadArenas()
 
@@ -89,7 +80,6 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
 
-
         val cmd = getCommand("splatoon")
         if (cmd != null) {
             val executor = SplatoonCommand(this)
@@ -100,10 +90,10 @@ class SplatoonPlugin : JavaPlugin() {
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 
         server.scheduler.runTaskTimer(this, Runnable {
-            val instance = MatchmakingManager.pollReady()
-            if (instance != null) {
+            val ready = MatchmakingManager.pollReady()
+            if (ready != null) {
                 logger.info("Команды собрались!")
-                GameManager.createGame(instance)
+                GameManager.createGame(ready)
             }
         }, 20L, 20L)
     }

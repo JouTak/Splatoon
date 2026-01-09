@@ -94,7 +94,11 @@ object GameManager {
             return
         }
 
-        val templateWorldName = instance.config.meta["world"] as? String ?: SplatoonPlugin.instance.mapName
+        val templateWorldName = instance.config.meta["world"] as? String
+        if (templateWorldName.isNullOrBlank()) {
+            SplatoonPlugin.instance.logger.severe("Instance ${instance.config.id} не содержит meta.world")
+            return
+        }
         val template = Bukkit.getWorld(templateWorldName)
         if (template == null) {
             SplatoonPlugin.instance.logger.severe("Template world $templateWorldName not found")
@@ -145,7 +149,18 @@ object GameManager {
 
         arenas[worldName] = world
 
-        val game = Game(worldName)
+        val settings = SplatoonPlugin.instance.settings
+        val boostLocations = if (!settings.boosts.enabled) {
+            emptyList()
+        } else {
+            val fromMeta = ru.joutak.splatoon.config.SplatoonSettings.readCoordinateTriples(
+                instance.config.meta["boostLocations"],
+                SplatoonPlugin.instance.logger
+            )
+            if (fromMeta.isNotEmpty()) fromMeta else settings.boosts.locations
+        }
+
+        val game = Game(worldName, settings, boostLocations)
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }
@@ -167,7 +182,7 @@ object GameManager {
             }
         }
 
-        game.startGame(worldName)
+        game.startGame()
     }
 
     private fun nextWorldName(templateWorldName: String): String {
