@@ -13,6 +13,7 @@ import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.BacillusHitListener
 import ru.joutak.splatoon.scripts.GameManager
 import ru.joutak.splatoon.commands.SplatoonCommand
+import ru.joutak.splatoon.listeners.BoostPickupListener
 import java.io.File
 
 class SplatoonPlugin : JavaPlugin() {
@@ -86,6 +87,8 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
+        Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
+
 
         val cmd = getCommand("splatoon")
         if (cmd != null) {
