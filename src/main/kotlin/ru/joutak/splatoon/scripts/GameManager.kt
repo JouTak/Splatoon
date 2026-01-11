@@ -8,6 +8,7 @@ import org.bukkit.entity.Player
 import ru.joutak.minigames.domain.GameInstance
 import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 import java.io.File
 import java.util.UUID
 
@@ -24,7 +25,7 @@ object GameManager {
     }
 
     fun sendToLobby(player: Player) {
-        val lobbyWorld = Bukkit.getWorld(SplatoonPlugin.instance.lobbyName)
+        val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
         val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
 
         player.scoreboard = Bukkit.getScoreboardManager().newScoreboard
@@ -94,11 +95,13 @@ object GameManager {
             return
         }
 
-        val templateWorldName = instance.config.meta["world"] as? String
-        if (templateWorldName.isNullOrBlank()) {
-            SplatoonPlugin.instance.logger.severe("Instance ${instance.config.id} не содержит meta.world")
-            return
-        }
+        val arenaId = instance.config.id
+        val arenaSettings = SplatoonSettings.arenasById[arenaId]
+
+        val templateWorldName = arenaSettings?.templateWorld
+            ?: (instance.config.meta["world"] as? String)
+            ?: SplatoonPlugin.instance.mapName
+
         val template = Bukkit.getWorld(templateWorldName)
         if (template == null) {
             SplatoonPlugin.instance.logger.severe("Template world $templateWorldName not found")
@@ -149,18 +152,7 @@ object GameManager {
 
         arenas[worldName] = world
 
-        val settings = SplatoonPlugin.instance.settings
-        val boostLocations = if (!settings.boosts.enabled) {
-            emptyList()
-        } else {
-            val fromMeta = ru.joutak.splatoon.config.SplatoonSettings.readCoordinateTriples(
-                instance.config.meta["boostLocations"],
-                SplatoonPlugin.instance.logger
-            )
-            if (fromMeta.isNotEmpty()) fromMeta else settings.boosts.locations
-        }
-
-        val game = Game(worldName, settings, boostLocations)
+        val game = Game(worldName, arenaId, arenaSettings?.spawns ?: emptyMap())
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }
@@ -182,7 +174,7 @@ object GameManager {
             }
         }
 
-        game.startGame()
+        game.startGame(worldName)
     }
 
     private fun nextWorldName(templateWorldName: String): String {

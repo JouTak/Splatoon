@@ -16,6 +16,7 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
 
 class PlayerUseListener(private val plugin: Plugin) : Listener {
@@ -39,8 +40,6 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(
             NamespacedKey(plugin, "splatoonAdmin"), PersistentDataType.BOOLEAN
         )
-
-        val settings = SplatoonPlugin.instance.settings
 
         val commandColors = mapOf(
             0 to "Red",
@@ -76,7 +75,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(settings.weapons.gun.velocity)
+                velocity = player.location.direction.multiply(SplatoonSettings.gunVelocity)
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
@@ -114,7 +113,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(settings.weapons.bomb.velocity)
+                velocity = player.location.direction.multiply(SplatoonSettings.bombVelocity)
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))

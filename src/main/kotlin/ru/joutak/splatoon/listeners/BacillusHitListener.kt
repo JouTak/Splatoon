@@ -11,14 +11,12 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerAnimationEvent
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
-import ru.joutak.splatoon.SplatoonPlugin
-import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
+import ru.joutak.splatoon.config.SplatoonSettings
 import java.time.Duration
 import java.util.UUID
 
 class BacillusHitListener(private val plugin: Plugin) : Listener {
-
     private val useCooldown: MutableMap<UUID, Long> = mutableMapOf()
 
     @EventHandler
@@ -28,32 +26,31 @@ class BacillusHitListener(private val plugin: Plugin) : Listener {
 
         val hand = findBacillus(player) ?: return
 
-        val settings = SplatoonPlugin.instance.settings
         val now = System.currentTimeMillis()
         val last = useCooldown[player.uniqueId]
-        if (last != null && now - last < settings.bacillus.cooldownMs) return
+        if (last != null && now - last < SplatoonSettings.bacillusCooldownMs) return
 
-        val target = raytracePlayer(player, settings.bacillus.rangeBlocks) ?: return
+        val target = raytracePlayer(player, SplatoonSettings.bacillusRangeBlocks) ?: return
         if (GameManager.playerGame[target.uniqueId] != game) return
 
         val attackerTeam = game.commands[player.uniqueId] ?: return
         val victimTeam = game.commands[target.uniqueId] ?: return
         if (attackerTeam == victimTeam) return
 
-        if (isSpawnSafe(target, game)) return
+        if (game.isSpawnSafe(target)) return
 
         useCooldown[player.uniqueId] = now
 
-        game.applyAmmoOverride(target.uniqueId, attackerTeam, settings.bacillus.durationSeconds * 1000L)
-        showBacillusTitles(player, target, settings.bacillus.durationSeconds)
+        game.applyAmmoOverride(target.uniqueId, attackerTeam, SplatoonSettings.bacillusDurationSeconds * 1000L)
+        showBacillusTitles(player, target)
 
         consumeBacillus(player, hand)
     }
 
-    private fun showBacillusTitles(attacker: Player, victim: Player, seconds: Int) {
+    private fun showBacillusTitles(attacker: Player, victim: Player) {
         val t = Title.title(
             Component.text("☣ Бацилла!", NamedTextColor.LIGHT_PURPLE),
-            Component.text("Вы заражены на ${seconds}с", NamedTextColor.GRAY),
+            Component.text("Вы заражены на ${SplatoonSettings.bacillusDurationSeconds} секунд", NamedTextColor.GRAY),
             Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(1400), Duration.ofMillis(150))
         )
         victim.showTitle(t)
@@ -79,52 +76,38 @@ class BacillusHitListener(private val plugin: Plugin) : Listener {
 
     private fun findBacillus(player: Player): BacillusHand? {
         val key = NamespacedKey(plugin, "Bacillus")
-        val inv = player.inventory
 
-        val main = inv.itemInMainHand
-        if (main.type == Material.AMETHYST_SHARD && main.hasItemMeta()) {
-            val pdc = main.itemMeta.persistentDataContainer
-            if (pdc.has(key, PersistentDataType.BOOLEAN)) return BacillusHand.MAIN
-        }
+        val off = player.inventory.itemInOffHand
+        if (off.type == Material.AMETHYST_SHARD && off.hasItemMeta() &&
+            off.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
+        ) return BacillusHand.OFF
 
-        val off = inv.itemInOffHand
-        if (off.type == Material.AMETHYST_SHARD && off.hasItemMeta()) {
-            val pdc = off.itemMeta.persistentDataContainer
-            if (pdc.has(key, PersistentDataType.BOOLEAN)) return BacillusHand.OFF
-        }
+        val main = player.inventory.itemInMainHand
+        if (main.type == Material.AMETHYST_SHARD && main.hasItemMeta() &&
+            main.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
+        ) return BacillusHand.MAIN
 
         return null
     }
 
     private fun consumeBacillus(player: Player, hand: BacillusHand) {
-        val inv = player.inventory
         if (hand == BacillusHand.MAIN) {
-            val it = inv.itemInMainHand
-            if (it.amount <= 1) inv.setItemInMainHand(null) else it.amount = it.amount - 1
+            val item = player.inventory.itemInMainHand
+            if (item.amount <= 1) player.inventory.setItemInMainHand(null)
+            else {
+                item.amount = item.amount - 1
+                player.inventory.setItemInMainHand(item)
+            }
             return
         }
 
-        val it = inv.itemInOffHand
-        if (it.amount <= 1) inv.setItemInOffHand(null) else it.amount = it.amount - 1
+        val item = player.inventory.itemInOffHand
+        if (item.amount <= 1) player.inventory.setItemInOffHand(null)
+        else {
+            item.amount = item.amount - 1
+            player.inventory.setItemInOffHand(item)
+        }
     }
 
-    private enum class BacillusHand {
-        MAIN,
-        OFF
-    }
-
-    private fun isSpawnSafe(player: Player, game: Game): Boolean {
-        val w = org.bukkit.Bukkit.getWorld(game.worldName) ?: return false
-        if (player.world.name != w.name) return false
-        if (game.isSpawnProtectionActive(player.uniqueId)) return true
-
-        val spawn = w.spawnLocation
-        val dx = player.location.x - spawn.x
-        val dy = player.location.y - spawn.y
-        val dz = player.location.z - spawn.z
-        val distSq = dx * dx + dy * dy + dz * dz
-
-        val r = SplatoonPlugin.instance.settings.spawnProtection.radiusBlocks
-        return distSq <= r * r
-    }
+    private enum class BacillusHand { MAIN, OFF }
 }
