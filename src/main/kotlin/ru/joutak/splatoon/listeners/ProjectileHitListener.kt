@@ -69,8 +69,9 @@ class ProjectileHitListener : Listener {
             val hpLeft = game.damageInkHp(victim.uniqueId, 1)
             if (hpLeft <= 0) {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
+                val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                explosivePaint(killPaintRadius, victim.location, entity.world, game, shooter.uniqueId, paintTeam, null)
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
             return
         }
@@ -105,8 +106,9 @@ class ProjectileHitListener : Listener {
             val hpLeft = game.damageInkHp(victim.uniqueId, 1)
             if (hpLeft <= 0) {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
+                val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                explosivePaint(killPaintRadius, victim.location, entity.world, game, shooter.uniqueId, paintTeam, null)
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
         }
     }

@@ -124,7 +124,15 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             }
 
             if (!isAdminUse) {
-                player.inventory.setItemInMainHand(null)
+                val item = player.inventory.itemInMainHand
+                if (item.type != Material.AIR) {
+                    if (item.amount <= 1) {
+                        player.inventory.setItemInMainHand(null)
+                    } else {
+                        item.amount = item.amount - 1
+                        player.inventory.setItemInMainHand(item)
+                    }
+                }
             }
         }
     }
