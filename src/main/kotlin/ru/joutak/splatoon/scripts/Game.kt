@@ -18,6 +18,8 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.scheduler.BukkitTask
 import org.bukkit.scoreboard.DisplaySlot
+import org.bukkit.scoreboard.Team
+import org.bukkit.util.Vector
 import ru.joutak.minigames.domain.GameResult
 import ru.joutak.minigames.domain.Player as MiniPlayer
 import ru.joutak.minigames.storage.GameResultStorage
@@ -63,6 +65,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
     val spawnProtectedUntil: MutableMap<UUID, Long> = mutableMapOf()
+    private val spawnProtectedOrigin: MutableMap<UUID, Vector> = mutableMapOf()
+    private val spawnProtectionMoved: MutableMap<UUID, Boolean> = mutableMapOf()
 
     val maxInkHp: Int = SplatoonSettings.inkMaxHp
     private val inkHp: MutableMap<UUID, Int> = mutableMapOf()
@@ -79,6 +83,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         ammoOverride.clear()
         spawnProtectedUntil.clear()
+        spawnProtectedOrigin.clear()
+        spawnProtectionMoved.clear()
         inkHp.clear()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
@@ -110,6 +116,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             if (player != null) {
                 player.inventory.clear()
                 teleportToTeamSpawn(player)
+                setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
             }
         }
         startCountdown(worldName)
@@ -315,6 +322,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         actionBarTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { id ->
                 val p = Bukkit.getPlayer(id) ?: return@forEach
+                updateSpawnProtectionMovement(p)
                 p.sendActionBar(buildActionBar(p))
             }
         }, 0L, SplatoonSettings.actionbarUpdateTicks)
@@ -333,6 +341,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             val leftMs = (ov.second - now).coerceAtLeast(0)
             val leftSec = ceil(leftMs / 1000.0).toInt()
             c = c.append(Component.text("  ☣ Bacillus ${leftSec}с", NamedTextColor.LIGHT_PURPLE))
+        }
+        if (isSpawnSafe(player)) {
+            c = c.append(Component.text("  SPAWN", NamedTextColor.GREEN))
         }
         return c
     }
@@ -549,8 +560,21 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return base
     }
 
-    fun setSpawnProtection(uuid: UUID, durationMs: Long) {
+    fun setSpawnProtection(player: Player, durationMs: Long) {
+        val uuid = player.uniqueId
+        if (durationMs <= 0) {
+            clearSpawnProtection(uuid)
+            return
+        }
         spawnProtectedUntil[uuid] = System.currentTimeMillis() + durationMs
+        spawnProtectedOrigin[uuid] = player.location.toVector()
+        spawnProtectionMoved[uuid] = false
+    }
+
+    private fun clearSpawnProtection(uuid: UUID) {
+        spawnProtectedUntil.remove(uuid)
+        spawnProtectedOrigin.remove(uuid)
+        spawnProtectionMoved.remove(uuid)
     }
 
     fun isSpawnProtectionActive(uuid: UUID): Boolean {
@@ -566,29 +590,75 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     }
 
     fun isSpawnSafe(player: Player): Boolean {
-        if (isSpawnProtectionActive(player.uniqueId)) return true
+        val uuid = player.uniqueId
+        val until = spawnProtectedUntil[uuid] ?: return false
 
-        val radius = SplatoonSettings.spawnProtectionRadius
-        if (radius <= 0.0) return false
-        val radiusSq = radius * radius
+        val now = System.currentTimeMillis()
+        if (now < until) return true
 
-        val loc = player.location
-        val team = commands[player.uniqueId]
-        val points = if (team != null) teamSpawns[team] else null
-        if (!points.isNullOrEmpty()) {
-            for (p in points) {
-                if (distSq(loc, p) <= radiusSq) return true
-            }
+        val moved = spawnProtectionMoved[uuid] ?: return false
+        if (moved) return false
+
+        val origin = spawnProtectedOrigin[uuid] ?: return false
+        val cur = player.location.toVector()
+        if (hasMoved(cur, origin)) {
+            spawnProtectionMoved[uuid] = true
+            clearSpawnProtection(uuid)
             return false
         }
-
-        val w = Bukkit.getWorld(worldName) ?: return false
-        val spawn = w.spawnLocation
-        val dx = loc.x - spawn.x
-        val dy = loc.y - spawn.y
-        val dz = loc.z - spawn.z
-        return (dx * dx + dy * dy + dz * dz) <= radiusSq
+        return true
     }
+
+
+    fun onPlayerMoved(player: Player) {
+        val uuid = player.uniqueId
+        val until = spawnProtectedUntil[uuid] ?: return
+        val origin = spawnProtectedOrigin[uuid] ?: return
+
+        val moved = spawnProtectionMoved[uuid] ?: return
+        if (moved) return
+
+        val cur = player.location.toVector()
+        if (hasMoved(cur, origin)) {
+            spawnProtectionMoved[uuid] = true
+            if (System.currentTimeMillis() >= until) {
+                clearSpawnProtection(uuid)
+            }
+        }
+    }
+
+
+    private fun updateSpawnProtectionMovement(player: Player) {
+        val uuid = player.uniqueId
+        val until = spawnProtectedUntil[uuid] ?: return
+        val origin = spawnProtectedOrigin[uuid] ?: return
+        val moved = spawnProtectionMoved[uuid] ?: return
+
+        val now = System.currentTimeMillis()
+
+        if (!moved) {
+            val cur = player.location.toVector()
+            if (hasMoved(cur, origin)) {
+                spawnProtectionMoved[uuid] = true
+                if (now >= until) {
+                    clearSpawnProtection(uuid)
+                }
+            }
+            return
+        }
+
+        if (now >= until) {
+            clearSpawnProtection(uuid)
+        }
+    }
+
+    private fun hasMoved(cur: Vector, origin: Vector): Boolean {
+        val dx = cur.x - origin.x
+        val dy = cur.y - origin.y
+        val dz = cur.z - origin.z
+        return (dx * dx + dz * dz) > 0.01 || kotlin.math.abs(dy) > 0.15
+    }
+
 
     private fun pickTeamSpawnLocation(team: Int?, world: World): org.bukkit.Location? {
         if (team == null) return null
@@ -671,7 +741,36 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         updateAllPlayerScoreboards()
     }
 
-    private fun updateAllPlayerScoreboards() {
+    
+    private fun updateSpawnNameTags() {
+        val protectedNames = mutableSetOf<String>()
+        commands.keys.forEach { uuid ->
+            val p = Bukkit.getPlayer(uuid) ?: return@forEach
+            if (isSpawnSafe(p)) {
+                protectedNames.add(p.name)
+            }
+        }
+
+        commands.keys.forEach { viewerUuid ->
+            val sb = playerScoreboards[viewerUuid] ?: return@forEach
+            val team = sb.getTeam("sp_spawn") ?: sb.registerNewTeam("sp_spawn").apply {
+                setPrefix("§aSPAWN §r")
+                setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.ALWAYS)
+            }
+
+            val toRemove = team.entries.filter { it !in protectedNames }
+            toRemove.forEach { team.removeEntry(it) }
+
+            protectedNames.forEach { name ->
+                if (!team.entries.contains(name)) {
+                    team.addEntry(name)
+                }
+            }
+        }
+    }
+
+private fun updateAllPlayerScoreboards() {
+        updateSpawnNameTags()
         val totalForPercent = if (totalPaintableBlocks > 0) totalPaintableBlocks else activeTeams.sumOf { paintedCommand[it] ?: 0 }
 
         commands.keys.forEach { uuid ->

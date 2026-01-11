@@ -36,10 +36,15 @@ spawn_protection:
 weapons:
   gun:
     velocity: 1.4
+    # If true, shots fly straight (no gravity), like wind charges
+    disable_gravity: true
     paint_radius: 1.5
     kill_paint_radius: 3.0
   bomb:
     velocity: 1.1
+    # Makes bombs more "lobbed" / arced (higher Y, slightly less horizontal speed)
+    horizontal_multiplier: 0.85
+    upward_boost: 0.55
     paint_radius: 5.0
     kill_paint_radius: 5.0
 
@@ -47,8 +52,8 @@ boosts:
   enabled: true
 
   # Random interval between spawns
-  min_interval_seconds: 18
-  max_interval_seconds: 39
+  min_interval_seconds: 10
+  max_interval_seconds: 30
 
   # Chance of Bomb vs Bacillus
   bomb_percent: 70

@@ -15,7 +15,6 @@ import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
-import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
 
@@ -68,14 +67,17 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             val colorName = commandColors[paintTeam] ?: return
             val projectileItem = createProjectileItem(colorName)
 
+            val dir = player.eyeLocation.direction.normalize()
+
             player.world.spawn(
                 Location(
                     player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
-                ).add(player.location.direction),
+                ).add(dir),
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(SplatoonSettings.gunVelocity)
+                setGravity(!SplatoonSettings.gunDisableGravity)
+                velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))
@@ -106,14 +108,19 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             val colorName = commandColors[paintTeam] ?: "Bomb"
             val projectileItem = createProjectileItem(colorName)
 
+            val dir = player.eyeLocation.direction.normalize()
+
             player.world.spawn(
                 Location(
                     player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
-                ).add(player.location.direction),
+                ).add(dir),
                 Snowball::class.java
             ).apply {
                 item = projectileItem
-                velocity = player.location.direction.multiply(SplatoonSettings.bombVelocity)
+                setGravity(true)
+                val vel = dir.clone().multiply(SplatoonSettings.bombVelocity * SplatoonSettings.bombHorizontalMultiplier)
+                vel.y += SplatoonSettings.bombUpwardBoost
+                velocity = vel
                 shooter = player
 
                 setMetadata("paintKey", FixedMetadataValue(plugin, 1))

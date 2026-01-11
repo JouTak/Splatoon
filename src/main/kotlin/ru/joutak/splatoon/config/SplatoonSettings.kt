@@ -60,7 +60,16 @@ object SplatoonSettings {
     var gunVelocity: Double = 1.4
         private set
 
+    var gunDisableGravity: Boolean = true
+        private set
+
     var bombVelocity: Double = 1.1
+        private set
+
+    var bombHorizontalMultiplier: Double = 0.85
+        private set
+
+    var bombUpwardBoost: Double = 0.55
         private set
 
     var gunPaintRadius: Double = 1.5
@@ -144,8 +153,12 @@ object SplatoonSettings {
         spawnProtectionResistanceAmplifier = max(0, config.getInt("spawn_protection.resistance_amplifier", 10))
         spawnProtectionNoDamageTicks = max(0, config.getInt("spawn_protection.no_damage_ticks", 60))
 
-        gunVelocity = config.getDouble("weapons.gun.velocity", 1.4)
-        bombVelocity = config.getDouble("weapons.bomb.velocity", 1.1)
+        gunVelocity = config.getDouble("weapons.gun.velocity", 1.4).coerceAtLeast(0.0)
+        gunDisableGravity = config.getBoolean("weapons.gun.disable_gravity", true)
+
+        bombVelocity = config.getDouble("weapons.bomb.velocity", 1.1).coerceAtLeast(0.0)
+        bombHorizontalMultiplier = config.getDouble("weapons.bomb.horizontal_multiplier", 0.85).coerceIn(0.05, 5.0)
+        bombUpwardBoost = config.getDouble("weapons.bomb.upward_boost", 0.55).coerceIn(-5.0, 5.0)
         gunPaintRadius = config.getDouble("weapons.gun.paint_radius", 1.5)
         bombPaintRadius = config.getDouble("weapons.bomb.paint_radius", 5.0)
         gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)

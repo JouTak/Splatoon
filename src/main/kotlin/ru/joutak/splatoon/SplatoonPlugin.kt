@@ -15,6 +15,7 @@ import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
+import ru.joutak.splatoon.listeners.SpawnProtectionMoveListener
 import ru.joutak.splatoon.scripts.GameManager
 import java.io.File
 
@@ -75,6 +76,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunProtectionListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
+        Bukkit.getPluginManager().registerEvents(SpawnProtectionMoveListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
 
         val cmd = getCommand("splatoon")
