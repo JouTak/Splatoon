@@ -122,13 +122,12 @@ class ProjectileHitListener : Listener {
 
     private fun splatAndRespawn(player: Player, game: Game) {
         game.resetInkHp(player.uniqueId)
-
         player.activePotionEffects.forEach { e -> player.removePotionEffect(e.type) }
         game.teleportToTeamSpawn(player)
         game.setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
+        game.syncHealthBar(player)
         player.velocity = player.velocity.zero()
         player.fireTicks = 0
-        player.health = 20.0
         player.foodLevel = 20
         player.saturation = 20f
 

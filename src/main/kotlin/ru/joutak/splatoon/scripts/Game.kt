@@ -10,12 +10,15 @@ import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.World
+import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.potion.PotionEffect
+import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitTask
 import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
@@ -29,6 +32,7 @@ import ru.joutak.splatoon.config.SplatoonSettings
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -64,12 +68,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     var totalPaintableBlocks: Int = 0
 
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
+
     val spawnProtectedUntil: MutableMap<UUID, Long> = mutableMapOf()
     private val spawnProtectedOrigin: MutableMap<UUID, Vector> = mutableMapOf()
     private val spawnProtectionMoved: MutableMap<UUID, Boolean> = mutableMapOf()
 
     val maxInkHp: Int = SplatoonSettings.inkMaxHp
     private val inkHp: MutableMap<UUID, Int> = mutableMapOf()
+
+    private var ended = false
 
     fun shutdownGame() {
         gameTimerTask?.cancel()
@@ -92,18 +99,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
 
         commands.keys.forEach { playerId ->
-            val player = Bukkit.getPlayer(playerId)
-            if (player != null) {
-                player.scoreboard = emptyScoreboard
-                player.inventory.clear()
-                player.health = 20.0
-                player.foodLevel = 20
-                player.saturation = 20f
-                player.activePotionEffects.forEach { effect ->
-                    player.removePotionEffect(effect.type)
-                }
-                player.teleport(spawn)
+            val player = Bukkit.getPlayer(playerId) ?: return@forEach
+            player.scoreboard = emptyScoreboard
+            player.inventory.clear()
+            restoreVanillaHealth(player)
+            player.foodLevel = 20
+            player.saturation = 20f
+            player.activePotionEffects.forEach { effect ->
+                player.removePotionEffect(effect.type)
             }
+            player.teleport(spawn)
         }
     }
 
@@ -112,17 +117,21 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         commands.keys.forEach { uuid ->
             inkHp[uuid] = maxInkHp
-            val player = Bukkit.getPlayer(uuid)
-            if (player != null) {
-                player.inventory.clear()
-                teleportToTeamSpawn(player)
-                setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
-            }
+            val player = Bukkit.getPlayer(uuid) ?: return@forEach
+            player.inventory.clear()
+            ensureInkHealth(player)
+            syncHealthBar(player)
+            teleportToTeamSpawn(player)
+            setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
         }
+
         startCountdown(worldName)
     }
 
     fun endGame(worldName: String) {
+        if (ended) return
+        ended = true
+
         gameTimerTask?.cancel()
         countdownTask?.cancel()
         scoreboardUpdateTask?.cancel()
@@ -134,15 +143,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         ammoOverride.clear()
         spawnProtectedUntil.clear()
+        spawnProtectedOrigin.clear()
+        spawnProtectionMoved.clear()
+        inkHp.clear()
 
         val winner = determineWinner()
 
         Bukkit.getScheduler().runTask(SplatoonPlugin.instance, Runnable {
             showWinnerAnnouncement(winner)
         })
-        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            showWinnerAnnouncement(winner)
-        }, 10L)
 
         playSoundToAllPlayers(
             Sound.sound(
@@ -152,6 +161,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 1.0f
             )
         )
+
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
 
         val participantsList = mutableListOf<MiniPlayer>()
@@ -177,26 +187,26 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         GameResultStorage.save(result)
 
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            val lobbyLocation = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
-            if (lobbyLocation == null) {
-                SplatoonPlugin.instance.logger.severe("Не удалось найти мир лобби: ${SplatoonSettings.lobbyWorldName}. Удаление игры остановлено.")
+            val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+            if (lobbyWorld == null) {
+                SplatoonPlugin.instance.logger.severe(
+                    "Не удалось найти мир лобби: ${SplatoonSettings.lobbyWorldName}. Удаление игры остановлено."
+                )
                 GameManager.deleteGame(this.worldName, this)
                 return@Runnable
             }
 
             commands.keys.forEach { playerId ->
-                val player = Bukkit.getPlayer(playerId)
-                if (player != null) {
-                    player.scoreboard = emptyScoreboard
-                    player.inventory.clear()
-                    player.health = 20.0
-                    player.foodLevel = 20
-                    player.saturation = 20f
-                    player.activePotionEffects.forEach { effect ->
-                        player.removePotionEffect(effect.type)
-                    }
-                    player.teleport(lobbyLocation.spawnLocation)
+                val player = Bukkit.getPlayer(playerId) ?: return@forEach
+                player.scoreboard = emptyScoreboard
+                player.inventory.clear()
+                restoreVanillaHealth(player)
+                player.foodLevel = 20
+                player.saturation = 20f
+                player.activePotionEffects.forEach { effect ->
+                    player.removePotionEffect(effect.type)
                 }
+                player.teleport(lobbyWorld.spawnLocation)
             }
 
             GameManager.deleteGame(this.worldName, this)
@@ -235,9 +245,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                             2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
                             1 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
                         )
-                        val subtitle = colors[commands[p.uniqueId]] ?: Component.text("Матч начинается!", NamedTextColor.GRAY)
+                        val subtitle = colors[commands[p.uniqueId]]
+                            ?: Component.text("Матч начинается!", NamedTextColor.GRAY)
+
+                        val titleColor = when (commands[p.uniqueId]) {
+                            0 -> NamedTextColor.RED
+                            1 -> NamedTextColor.YELLOW
+                            2 -> NamedTextColor.GREEN
+                            3 -> NamedTextColor.BLUE
+                            else -> NamedTextColor.GOLD
+                        }
+
                         val titleObj = Title.title(
-                            Component.text("ПОДГОТОВКА!", NamedTextColor.BLACK),
+                            Component.text("ПОДГОТОВКА!", titleColor),
                             subtitle,
                             Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(1800), Duration.ofMillis(200))
                         )
@@ -323,16 +343,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             commands.keys.forEach { id ->
                 val p = Bukkit.getPlayer(id) ?: return@forEach
                 updateSpawnProtectionMovement(p)
-                p.sendActionBar(buildActionBar(p))
+                val spawnSafe = isSpawnSafe(p)
+                updateSpawnGlow(p, spawnSafe)
+                p.sendActionBar(buildActionBar(p, spawnSafe))
             }
         }, 0L, SplatoonSettings.actionbarUpdateTicks)
     }
 
-    private fun buildActionBar(player: Player): Component {
-        val hp = getInkHp(player.uniqueId)
-        val full = "❤".repeat(hp.coerceIn(0, maxInkHp))
-        val empty = "❤".repeat((maxInkHp - hp).coerceIn(0, maxInkHp))
-        var c = Component.text(full, NamedTextColor.RED).append(Component.text(empty, NamedTextColor.DARK_GRAY))
+    private fun buildActionBar(player: Player, spawnSafe: Boolean): Component {
+        var hasAny = false
+        var c = Component.empty()
 
         val base = commands[player.uniqueId]
         val ov = ammoOverride[player.uniqueId]
@@ -340,12 +360,17 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             val now = System.currentTimeMillis()
             val leftMs = (ov.second - now).coerceAtLeast(0)
             val leftSec = ceil(leftMs / 1000.0).toInt()
-            c = c.append(Component.text("  ☣ Bacillus ${leftSec}с", NamedTextColor.LIGHT_PURPLE))
+            c = c.append(Component.text("☣ Bacillus ${leftSec}с", NamedTextColor.LIGHT_PURPLE))
+            hasAny = true
         }
-        if (isSpawnSafe(player)) {
-            c = c.append(Component.text("  SPAWN", NamedTextColor.GREEN))
+
+        if (spawnSafe) {
+            if (hasAny) c = c.append(Component.text("  "))
+            c = c.append(Component.text("SPAWN", NamedTextColor.GREEN))
+            hasAny = true
         }
-        return c
+
+        return if (hasAny) c else Component.empty()
     }
 
     fun getInkHp(uuid: UUID): Int {
@@ -354,12 +379,14 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
     fun resetInkHp(uuid: UUID) {
         inkHp[uuid] = maxInkHp
+        syncHealthBar(uuid)
     }
 
     fun damageInkHp(uuid: UUID, amount: Int): Int {
         val cur = getInkHp(uuid)
         val next = (cur - amount).coerceIn(0, maxInkHp)
         inkHp[uuid] = next
+        syncHealthBar(uuid)
         return next
     }
 
@@ -564,29 +591,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val uuid = player.uniqueId
         if (durationMs <= 0) {
             clearSpawnProtection(uuid)
+            updateSpawnGlow(player, false)
             return
         }
         spawnProtectedUntil[uuid] = System.currentTimeMillis() + durationMs
         spawnProtectedOrigin[uuid] = player.location.toVector()
         spawnProtectionMoved[uuid] = false
+        updateSpawnGlow(player, true)
     }
 
     private fun clearSpawnProtection(uuid: UUID) {
         spawnProtectedUntil.remove(uuid)
         spawnProtectedOrigin.remove(uuid)
         spawnProtectionMoved.remove(uuid)
-    }
-
-    fun isSpawnProtectionActive(uuid: UUID): Boolean {
-        val until = spawnProtectedUntil[uuid] ?: return false
-        return System.currentTimeMillis() < until
-    }
-
-    fun teleportToTeamSpawn(player: Player) {
-        val w = Bukkit.getWorld(worldName) ?: return
-        val team = commands[player.uniqueId]
-        val loc = pickTeamSpawnLocation(team, w) ?: w.spawnLocation
-        player.teleport(loc)
     }
 
     fun isSpawnSafe(player: Player): Boolean {
@@ -609,7 +626,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return true
     }
 
-
     fun onPlayerMoved(player: Player) {
         val uuid = player.uniqueId
         val until = spawnProtectedUntil[uuid] ?: return
@@ -626,7 +642,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             }
         }
     }
-
 
     private fun updateSpawnProtectionMovement(player: Player) {
         val uuid = player.uniqueId
@@ -656,9 +671,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val dx = cur.x - origin.x
         val dy = cur.y - origin.y
         val dz = cur.z - origin.z
-        return (dx * dx + dz * dz) > 0.01 || kotlin.math.abs(dy) > 0.15
+        return (dx * dx + dz * dz) > 0.01 || abs(dy) > 0.15
     }
 
+    fun teleportToTeamSpawn(player: Player) {
+        val w = Bukkit.getWorld(worldName) ?: return
+        val team = commands[player.uniqueId]
+        val loc = pickTeamSpawnLocation(team, w) ?: w.spawnLocation
+        player.teleport(loc)
+    }
 
     private fun pickTeamSpawnLocation(team: Int?, world: World): org.bukkit.Location? {
         if (team == null) return null
@@ -670,13 +691,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val yaw = chosen.yaw ?: fallback.yaw
         val pitch = chosen.pitch ?: fallback.pitch
         return org.bukkit.Location(world, chosen.x, chosen.y, chosen.z, yaw, pitch)
-    }
-
-    private fun distSq(loc: org.bukkit.Location, p: SpawnPoint): Double {
-        val dx = loc.x - p.x
-        val dy = loc.y - p.y
-        val dz = loc.z - p.z
-        return dx * dx + dy * dy + dz * dz
     }
 
     private fun createBossBar() {
@@ -741,14 +755,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         updateAllPlayerScoreboards()
     }
 
-    
     private fun updateSpawnNameTags() {
         val protectedNames = mutableSetOf<String>()
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
-            if (isSpawnSafe(p)) {
-                protectedNames.add(p.name)
-            }
+            if (isSpawnSafe(p)) protectedNames.add(p.name)
         }
 
         commands.keys.forEach { viewerUuid ->
@@ -762,16 +773,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             toRemove.forEach { team.removeEntry(it) }
 
             protectedNames.forEach { name ->
-                if (!team.entries.contains(name)) {
-                    team.addEntry(name)
-                }
+                if (!team.hasEntry(name)) team.addEntry(name)
             }
         }
     }
 
-private fun updateAllPlayerScoreboards() {
+    private fun updateAllPlayerScoreboards() {
         updateSpawnNameTags()
-        val totalForPercent = if (totalPaintableBlocks > 0) totalPaintableBlocks else activeTeams.sumOf { paintedCommand[it] ?: 0 }
+
+        val totalForPercent = if (totalPaintableBlocks > 0) {
+            totalPaintableBlocks
+        } else {
+            activeTeams.sumOf { paintedCommand[it] ?: 0 }
+        }
 
         commands.keys.forEach { uuid ->
             val sb = playerScoreboards[uuid] ?: return@forEach
@@ -867,5 +881,46 @@ private fun updateAllPlayerScoreboards() {
         val percent = if (teamTotal <= 0) 0 else (((value.coerceAtLeast(0)).toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
         val k = kills[uuid] ?: 0
         return "§b$name: §f$value §7(${percent}%) §c✦$k"
+    }
+
+    private fun ensureInkHealth(player: Player) {
+        val attr = player.getAttribute(Attribute.MAX_HEALTH) ?: return
+        val desired = (maxInkHp * 2).toDouble().coerceAtLeast(2.0)
+        if (attr.baseValue != desired) {
+            attr.baseValue = desired
+        }
+    }
+
+    fun syncHealthBar(uuid: UUID) {
+        val player = Bukkit.getPlayer(uuid) ?: return
+        syncHealthBar(player)
+    }
+
+    fun syncHealthBar(player: Player) {
+        ensureInkHealth(player)
+        val maxHealth = player.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 20.0
+        val hp = getInkHp(player.uniqueId)
+        val desiredHealth = (hp * 2).toDouble().coerceIn(1.0, maxHealth)
+        if (player.absorptionAmount != 0.0) {
+            player.absorptionAmount = 0.0
+        }
+        if (player.health != desiredHealth) {
+            player.health = desiredHealth
+        }
+    }
+
+    private fun restoreVanillaHealth(player: Player) {
+        player.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 20.0
+        player.health = 20.0
+        player.absorptionAmount = 0.0
+        player.removePotionEffect(PotionEffectType.GLOWING)
+    }
+
+    private fun updateSpawnGlow(player: Player, enabled: Boolean) {
+        if (!enabled) {
+            player.removePotionEffect(PotionEffectType.GLOWING)
+            return
+        }
+        player.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, 40, 0, false, false, false))
     }
 }

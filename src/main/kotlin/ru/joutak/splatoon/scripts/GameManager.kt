@@ -4,7 +4,9 @@ import com.onarandombox.MultiverseCore.MultiverseCore
 import com.onarandombox.MultiverseCore.enums.AllowedPortalType
 import org.bukkit.*
 import org.bukkit.Bukkit.getWorld
+import org.bukkit.attribute.Attribute
 import org.bukkit.entity.Player
+import org.bukkit.potion.PotionEffectType
 import ru.joutak.minigames.domain.GameInstance
 import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.splatoon.SplatoonPlugin
@@ -30,6 +32,9 @@ object GameManager {
 
         player.scoreboard = Bukkit.getScoreboardManager().newScoreboard
         player.inventory.clear()
+        player.getAttribute(Attribute.MAX_HEALTH)?.baseValue = 20.0
+        player.absorptionAmount = 0.0
+        player.removePotionEffect(PotionEffectType.GLOWING)
         player.health = 20.0
         player.foodLevel = 20
         player.saturation = 20f
