@@ -100,6 +100,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         commands.keys.forEach { playerId ->
             val player = Bukkit.getPlayer(playerId) ?: return@forEach
+            setNoCollision(player, false)
             player.scoreboard = emptyScoreboard
             player.inventory.clear()
             restoreVanillaHealth(player)
@@ -198,6 +199,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
             commands.keys.forEach { playerId ->
                 val player = Bukkit.getPlayer(playerId) ?: return@forEach
+                setNoCollision(player, false)
                 player.scoreboard = emptyScoreboard
                 player.inventory.clear()
                 restoreVanillaHealth(player)
@@ -588,6 +590,33 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     }
 
 
+    private val noCollisionTeamName = "sp_nocoll"
+
+    private fun ensureNoCollisionTeam(sb: org.bukkit.scoreboard.Scoreboard): Team {
+        val existing = sb.getTeam(noCollisionTeamName)
+        val team = existing ?: sb.registerNewTeam(noCollisionTeamName)
+
+        // Важно: collision rule — это именно то, что реально отключает толкание игроков.
+        team.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER)
+        return team
+    }
+
+    private fun setNoCollision(player: Player, enabled: Boolean) {
+        // Иногда Bukkit-флаг сам по себе не спасает от толканий, но лишним не будет.
+        player.isCollidable = !enabled
+
+        val sb = player.scoreboard
+        val team = ensureNoCollisionTeam(sb)
+        val entry = player.name
+
+        if (enabled) {
+            if (!team.hasEntry(entry)) team.addEntry(entry)
+        } else {
+            if (team.hasEntry(entry)) team.removeEntry(entry)
+        }
+    }
+
+
     fun setSpawnProtection(player: Player, durationMs: Long) {
         val uuid = player.uniqueId
         if (durationMs <= 0) {
@@ -599,8 +628,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spawnProtectedOrigin[uuid] = player.location.toVector()
         spawnProtectionMoved[uuid] = false
 
-        // Защищаем игрока от толканий/коллизий другими игроками, пока активен spawn protection.
-        player.isCollidable = false
+        // Защищаем игрока от толканий другими игроками, пока активен spawn protection.
+        setNoCollision(player, true)
 
         updateSpawnGlow(player, true)
     }
@@ -610,7 +639,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spawnProtectedOrigin.remove(uuid)
         spawnProtectionMoved.remove(uuid)
         if (player != null) {
-            player.isCollidable = true
+            setNoCollision(player, false)
         }
     }
 
@@ -757,6 +786,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             )
             obj.displaySlot = DisplaySlot.SIDEBAR
             player.scoreboard = sb
+            if (spawnProtectedUntil.containsKey(uuid)) {
+                setNoCollision(player, true)
+            }
             playerScoreboards[uuid] = sb
             playerObjectives[uuid] = obj
         }
