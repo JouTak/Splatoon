@@ -42,6 +42,16 @@ object SplatoonSettings {
     var inkMaxHp: Int = 3
         private set
 
+    var inkRegenOnOwnColorEnabled: Boolean = true
+        private set
+
+    // In "Ink HP" units (1.0 = +1❤ per second)
+    var inkRegenOnOwnColorRatePerSecond: Double = 0.5
+        private set
+
+    var inkRegenOnOwnColorDelayAfterDamageSeconds: Int = 2
+        private set
+
     var spawnProtectionRadius: Double = 7.0
         private set
 
@@ -146,6 +156,14 @@ object SplatoonSettings {
         actionbarUpdateTicks = max(1, config.getLong("game.actionbar_update_ticks", 5))
 
         inkMaxHp = max(1, config.getInt("ink.max_hp", 3))
+
+        inkRegenOnOwnColorEnabled = config.getBoolean("ink.regen_on_own_color.enabled", true)
+        inkRegenOnOwnColorRatePerSecond = config.getDouble("ink.regen_on_own_color.rate_per_second", 0.5)
+            .coerceAtLeast(0.0)
+        inkRegenOnOwnColorDelayAfterDamageSeconds = max(
+            0,
+            config.getInt("ink.regen_on_own_color.delay_after_damage_seconds", 2)
+        )
 
         spawnProtectionRadius = config.getDouble("spawn_protection.radius_blocks", 7.0).coerceAtLeast(0.0)
         spawnProtectionAfterRespawnSeconds = max(0, config.getInt("spawn_protection.after_respawn_seconds", 4))

@@ -76,6 +76,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     val maxInkHp: Int = SplatoonSettings.inkMaxHp
     private val inkHp: MutableMap<UUID, Int> = mutableMapOf()
 
+    private val regenCarry: MutableMap<UUID, Double> = mutableMapOf()
+    private val lastInkDamageAt: MutableMap<UUID, Long> = mutableMapOf()
+
     private var ended = false
 
     fun shutdownGame() {
@@ -93,6 +96,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spawnProtectedOrigin.clear()
         spawnProtectionMoved.clear()
         inkHp.clear()
+        regenCarry.clear()
+        lastInkDamageAt.clear()
+        regenCarry.clear()
+        lastInkDamageAt.clear()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
@@ -117,8 +124,12 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         commands.keys.forEach { uuid ->
             inkHp[uuid] = maxInkHp
+            regenCarry[uuid] = 0.0
+            lastInkDamageAt[uuid] = 0L
             val player = Bukkit.getPlayer(uuid) ?: return@forEach
             player.inventory.clear()
+            player.foodLevel = 20
+            player.saturation = 20f
             ensureInkHealth(player)
             syncHealthBar(player)
             teleportToTeamSpawn(player)
@@ -342,12 +353,57 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         actionBarTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { id ->
                 val p = Bukkit.getPlayer(id) ?: return@forEach
+                if (p.foodLevel != 20) p.foodLevel = 20
+                if (p.saturation != 20f) p.saturation = 20f
                 updateSpawnProtectionMovement(p)
                 val spawnSafe = isSpawnSafe(p)
                 updateSpawnGlow(p, spawnSafe)
+                tickInkRegen(p)
+                syncHealthBar(p)
                 p.sendActionBar(buildActionBar(p, spawnSafe))
             }
         }, 0L, SplatoonSettings.actionbarUpdateTicks)
+    }
+
+    private fun tickInkRegen(player: Player) {
+        if (!SplatoonSettings.inkRegenOnOwnColorEnabled) return
+
+        val uuid = player.uniqueId
+        val team = commands[uuid] ?: return
+        val ownMat = commandColors[team] ?: return
+        if (getInkHp(uuid) >= maxInkHp) {
+            regenCarry[uuid] = 0.0
+            return
+        }
+
+        val under = player.location.clone().subtract(0.0, 0.1, 0.0).block
+        if (under.type != ownMat) {
+            regenCarry[uuid] = 0.0
+            return
+        }
+
+        val delayMs = SplatoonSettings.inkRegenOnOwnColorDelayAfterDamageSeconds * 1000L
+        val lastDamageAt = lastInkDamageAt[uuid] ?: 0L
+        if (delayMs > 0 && lastDamageAt > 0L && System.currentTimeMillis() - lastDamageAt < delayMs) return
+
+        val rate = SplatoonSettings.inkRegenOnOwnColorRatePerSecond
+        if (rate <= 0.0) return
+
+        val dtSeconds = SplatoonSettings.actionbarUpdateTicks / 20.0
+        val next = (regenCarry[uuid] ?: 0.0) + (rate * dtSeconds)
+        val whole = next.toInt()
+        if (whole <= 0) {
+            regenCarry[uuid] = next
+            return
+        }
+
+        regenCarry[uuid] = next - whole
+        val cur = getInkHp(uuid)
+        val healed = (cur + whole).coerceAtMost(maxInkHp)
+        if (healed != cur) {
+            inkHp[uuid] = healed
+            syncHealthBar(uuid)
+        }
     }
 
     private fun buildActionBar(player: Player, spawnSafe: Boolean): Component {
@@ -386,6 +442,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val cur = getInkHp(uuid)
         val next = (cur - amount).coerceIn(0, maxInkHp)
         inkHp[uuid] = next
+        lastInkDamageAt[uuid] = System.currentTimeMillis()
+        regenCarry[uuid] = 0.0
         syncHealthBar(uuid)
         return next
     }
