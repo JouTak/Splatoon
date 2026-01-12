@@ -40,54 +40,6 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             NamespacedKey(plugin, "splatoonAdmin"), PersistentDataType.BOOLEAN
         )
 
-        val commandColors = mapOf(
-            0 to "Red",
-            3 to "Blue",
-            2 to "Green",
-            1 to "Yellow"
-        )
-
-        if (itemInHand.type == Material.GOLDEN_SHOVEL && pdc.has(
-                NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN
-            )
-        ) {
-            if (game == null && !isAdminUse) return
-
-            val baseTeam = if (game != null) {
-                game.commands[player.uniqueId] ?: return
-            } else {
-                pdc.get(NamespacedKey(plugin, "adminTeam"), PersistentDataType.INTEGER) ?: 0
-            }
-            val paintTeam = if (game != null) {
-                game.getAmmoTeam(player.uniqueId) ?: baseTeam
-            } else {
-                GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
-            }
-
-            val colorName = commandColors[paintTeam] ?: return
-            val projectileItem = createProjectileItem(colorName)
-
-            val dir = player.eyeLocation.direction.normalize()
-
-            player.world.spawn(
-                Location(
-                    player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
-                ).add(dir),
-                Snowball::class.java
-            ).apply {
-                item = projectileItem
-                setGravity(!SplatoonSettings.gunDisableGravity)
-                velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
-                shooter = player
-
-                setMetadata("paintKey", FixedMetadataValue(plugin, 1))
-                setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
-                setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
-                setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
-            }
-            return
-        }
-
         if (itemInHand.type == Material.GOLDEN_AXE && pdc.has(
                 NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN
             )

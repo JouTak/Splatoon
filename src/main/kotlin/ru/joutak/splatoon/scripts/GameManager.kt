@@ -100,8 +100,8 @@ object GameManager {
             return
         }
 
-        val arenaId = instance.config.id
-        val arenaSettings = SplatoonSettings.arenasById[arenaId]
+        val baseArenaId = (instance.config.meta["arenaId"] as? String) ?: instance.config.id
+        val arenaSettings = SplatoonSettings.arenasById[baseArenaId]
 
         val templateWorldName = arenaSettings?.templateWorld
             ?: (instance.config.meta["world"] as? String)
@@ -154,11 +154,10 @@ object GameManager {
         world.setGameRule(GameRule.FALL_DAMAGE, false)
         world.setGameRule(GameRule.DROWNING_DAMAGE, false)
         world.setGameRule(GameRule.FIRE_DAMAGE, false)
-        world.setGameRule(GameRule.NATURAL_REGENERATION, false)
 
         arenas[worldName] = world
 
-        val game = Game(worldName, arenaId, arenaSettings?.spawns ?: emptyMap())
+        val game = Game(worldName, baseArenaId, arenaSettings?.spawns ?: emptyMap())
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }

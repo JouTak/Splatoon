@@ -17,7 +17,9 @@ data class ArenaSettings(
     val templateWorld: String,
     val teamCount: Int,
     val playersPerTeam: Int,
-    val spawns: Map<Int, List<SpawnPoint>>
+    val spawns: Map<Int, List<SpawnPoint>>,
+    /** How many parallel queue instances should be created for this arena template. */
+    val instances: Int
 )
 
 object SplatoonSettings {
@@ -25,6 +27,13 @@ object SplatoonSettings {
         private set
 
     var defaultTemplateWorld: String = "sp_arena"
+        private set
+
+    /**
+     * Global fallback for arena parallelism.
+     * If arena config contains `instances: N`, it overrides this value.
+     */
+    var maxParallelGamesPerArena: Int = 1
         private set
 
     var gameDurationSeconds: Int = 300
@@ -40,17 +49,6 @@ object SplatoonSettings {
         private set
 
     var inkMaxHp: Int = 3
-        private set
-
-    var inkRegenEnabled: Boolean = true
-        private set
-
-    // While player is in "squid" mode (INVISIBILITY effect)
-    // 1.0 = +1 Ink HP per second
-    var inkRegenRatePerSecond: Double = 0.5
-        private set
-
-    var inkRegenDelayAfterDamageSeconds: Int = 2
         private set
 
     var spawnProtectionRadius: Double = 7.0
@@ -151,16 +149,20 @@ object SplatoonSettings {
             ?: config.getString("map_name")
             ?: "sp_arena"
 
+        maxParallelGamesPerArena = max(
+            1,
+            config.getInt(
+                "game.max_parallel_games_per_arena",
+                config.getInt("game.max_parallel_games", 1)
+            )
+        )
+
         gameDurationSeconds = max(1, config.getInt("game.duration_seconds", 300))
         returnToLobbyDelaySeconds = max(0, config.getInt("game.return_to_lobby_delay_seconds", 5))
         scoreboardUpdateTicks = max(1, config.getLong("game.scoreboard_update_ticks", 10))
         actionbarUpdateTicks = max(1, config.getLong("game.actionbar_update_ticks", 5))
 
         inkMaxHp = max(1, config.getInt("ink.max_hp", 3))
-
-        inkRegenEnabled = config.getBoolean("ink.regen.enabled", true)
-        inkRegenRatePerSecond = config.getDouble("ink.regen.rate_per_second", 0.5).coerceAtLeast(0.0)
-        inkRegenDelayAfterDamageSeconds = max(0, config.getInt("ink.regen.delay_after_damage_seconds", 2))
 
         spawnProtectionRadius = config.getDouble("spawn_protection.radius_blocks", 7.0).coerceAtLeast(0.0)
         spawnProtectionAfterRespawnSeconds = max(0, config.getInt("spawn_protection.after_respawn_seconds", 4))
@@ -216,8 +218,14 @@ object SplatoonSettings {
             val world = raw["world"] as? String ?: continue
             val teamCount = (raw["teamCount"] as? Int) ?: 2
             val playersPerTeam = (raw["playersPerTeam"] as? Int) ?: 3
+
+            val rawInstances = (raw["instances"] as? Int)
+                ?: (raw["maxParallelGames"] as? Int)
+                ?: maxParallelGamesPerArena
+            val instances = max(1, rawInstances)
+
             val spawns = parseArenaSpawns(raw["spawns"], logger)
-            val s = ArenaSettings(id, world, teamCount, playersPerTeam, spawns)
+            val s = ArenaSettings(id, world, teamCount, playersPerTeam, spawns, instances)
             arenas.add(s)
             arenasById[id] = s
         }

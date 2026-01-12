@@ -4,20 +4,35 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextColor
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import ru.joutak.splatoon.config.SplatoonSettings
 
 object AdminItems {
 
     fun gun(team: Int = 0): ItemStack {
-        val item = ItemStack(Material.GOLDEN_SHOVEL, 1)
+        val item = ItemStack(Material.BOW, 1)
         val meta = item.itemMeta
         val plugin = SplatoonPlugin.instance
 
         meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
+        meta.addEnchant(Enchantment.INFINITY, 1, true)
+        meta.isUnbreakable = true
         meta.persistentDataContainer.set(NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN, true)
+        markAdmin(meta.persistentDataContainer, team)
+
+        item.itemMeta = meta
+        return item
+    }
+
+    fun ammo(team: Int = 0): ItemStack {
+        val item = ItemStack(Material.ARROW, 1)
+        val meta = item.itemMeta
+        val plugin = SplatoonPlugin.instance
+
+        meta.displayName(Component.text("Патроны").color(TextColor.color(0xAAAAAA)))
+        meta.persistentDataContainer.set(NamespacedKey(plugin, "splatAmmo"), PersistentDataType.BOOLEAN, true)
         markAdmin(meta.persistentDataContainer, team)
 
         item.itemMeta = meta

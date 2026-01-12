@@ -9,7 +9,7 @@ import ru.joutak.splatoon.scripts.GameManager
 
 class NaturalRegenerationListener : Listener {
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     fun onRegainHealth(event: EntityRegainHealthEvent) {
         val player = event.entity as? Player ?: return
         val game = GameManager.playerGame[player.uniqueId] ?: return

@@ -10,6 +10,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.plugin.Plugin
 
 class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) : CommandExecutor {
@@ -32,7 +33,7 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         }
 
         val item = when (type) {
-            Type.GUN -> createItem(Material.GOLDEN_SHOVEL, "Сплат-пушка", "splatGun")
+            Type.GUN -> createItem(Material.BOW, "Сплат-пушка", "splatGun")
             Type.BOMB -> createItem(Material.GOLDEN_AXE, "Сплат-бомба", "Bomb")
             Type.BACILLUS -> createItem(Material.AMETHYST_SHARD, "Бацилла", "Bacillus")
         }
@@ -45,6 +46,10 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         val item = ItemStack(material, 1)
         val meta = item.itemMeta
         meta.displayName(Component.text(name).color(TextColor.color(0xFF55FF)))
+        if (material == Material.BOW && key == "splatGun") {
+            meta.addEnchant(Enchantment.INFINITY, 1, true)
+            meta.isUnbreakable = true
+        }
         meta.persistentDataContainer.set(NamespacedKey(plugin, key), PersistentDataType.BOOLEAN, true)
         item.itemMeta = meta
         return item

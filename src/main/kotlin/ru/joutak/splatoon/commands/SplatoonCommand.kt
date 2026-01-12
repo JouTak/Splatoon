@@ -1,10 +1,13 @@
 package ru.joutak.splatoon.commands
 
+import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.command.Command
 import org.bukkit.command.CommandExecutor
 import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
+import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
 
 class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, TabCompleter {
@@ -32,6 +35,7 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
             when (args[1].lowercase()) {
                 "gun" -> {
                     sender.inventory.addItem(AdminItems.gun())
+                    if (!hasAmmo(sender)) sender.inventory.addItem(AdminItems.ammo())
                     sender.sendMessage("§aВыдано: Сплат-пушка")
                 }
 
@@ -70,5 +74,15 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
                 .toMutableList()
         }
         return mutableListOf()
+    }
+
+    private fun hasAmmo(player: Player): Boolean {
+        val key = NamespacedKey(plugin, "splatAmmo")
+        return player.inventory.contents.any { st ->
+            st != null && st.type == Material.ARROW && st.hasItemMeta() && st.itemMeta.persistentDataContainer.has(
+                key,
+                PersistentDataType.BOOLEAN
+            )
+        }
     }
 }
