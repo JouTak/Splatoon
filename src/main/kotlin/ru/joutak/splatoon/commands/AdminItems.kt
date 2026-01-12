@@ -7,6 +7,7 @@ import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 
 object AdminItems {
 

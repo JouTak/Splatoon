@@ -154,6 +154,7 @@ object GameManager {
         world.setGameRule(GameRule.FALL_DAMAGE, false)
         world.setGameRule(GameRule.DROWNING_DAMAGE, false)
         world.setGameRule(GameRule.FIRE_DAMAGE, false)
+        world.setGameRule(GameRule.NATURAL_REGENERATION, false)
 
         arenas[worldName] = world
 

@@ -56,7 +56,7 @@ class ProjectileHitListener : Listener {
                 return
             }
 
-            val victimProtectedByInk = isOnOwnInk(victim, game)
+            val victimProtectedByInk = victim.hasPotionEffect(PotionEffectType.INVISIBILITY)
             val spawnSafe = game.isSpawnSafe(victim)
 
             val excludeUnder = if (victimProtectedByInk && paintTeam != victimTeam) victim.location.block else null
@@ -91,7 +91,7 @@ class ProjectileHitListener : Listener {
 
         val protectedSnapshot = mutableMapOf<UUID, Boolean>()
         victims.forEach { v ->
-            protectedSnapshot[v.uniqueId] = isOnOwnInk(v, game) || game.isSpawnSafe(v)
+            protectedSnapshot[v.uniqueId] = v.hasPotionEffect(PotionEffectType.INVISIBILITY) || game.isSpawnSafe(v)
         }
 
         explosivePaint(radius, center, entity.world, game, shooter.uniqueId, paintTeam, null)
@@ -111,13 +111,6 @@ class ProjectileHitListener : Listener {
                 explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
         }
-    }
-
-    private fun isOnOwnInk(player: Player, game: Game): Boolean {
-        val team = game.commands[player.uniqueId] ?: return false
-        val under = player.location.clone().subtract(0.0, 0.1, 0.0).block
-        val ownMat = game.commandColors[team] ?: return false
-        return under.type == ownMat
     }
 
     private fun splatAndRespawn(player: Player, game: Game) {

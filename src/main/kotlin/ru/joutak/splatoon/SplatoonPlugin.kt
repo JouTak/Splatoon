@@ -11,7 +11,7 @@ import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.listeners.BacillusHitListener
 import ru.joutak.splatoon.listeners.BoostPickupListener
 import ru.joutak.splatoon.listeners.DamageGuardListener
-import ru.joutak.splatoon.listeners.InkHealthRegainListener
+import ru.joutak.splatoon.listeners.NaturalRegenerationListener
 import ru.joutak.splatoon.listeners.PlayerSessionListener
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
@@ -75,7 +75,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerUseListener(this), this)
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
         Bukkit.getPluginManager().registerEvents(DamageGuardListener(), this)
-        Bukkit.getPluginManager().registerEvents(InkHealthRegainListener(), this)
+        Bukkit.getPluginManager().registerEvents(NaturalRegenerationListener(), this)
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunProtectionListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
