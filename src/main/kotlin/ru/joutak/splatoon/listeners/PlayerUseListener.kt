@@ -105,8 +105,9 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
             }
 
-            val colorName = commandColors[paintTeam] ?: "Bomb"
-            val projectileItem = createProjectileItem(colorName)
+            // Bomb визуально должен оставаться "Bomb" (ресурспак подхватывает модель по имени).
+            // Цвет команды берётся из метаданных (paintTeam/baseTeam), а не из имени предмета.
+            val projectileItem = createProjectileItem("Bomb")
 
             val dir = player.eyeLocation.direction.normalize()
 
