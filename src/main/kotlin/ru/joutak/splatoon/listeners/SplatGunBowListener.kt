@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.Sound
 import org.bukkit.entity.Player
 import org.bukkit.entity.Snowball
 import org.bukkit.event.EventHandler
@@ -27,6 +28,7 @@ import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
 import java.lang.reflect.Method
 import java.util.UUID
+import kotlin.random.Random
 
 class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
@@ -142,6 +144,14 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val dir = player.eyeLocation.direction.normalize()
         val muzzle = muzzleLocation(player.eyeLocation, dir)
 
+        // Shot sound for nearby players.
+        player.world.playSound(
+            muzzle,
+            Sound.ENTITY_SNOWBALL_THROW,
+            0.6f,
+            (1.2f + Random.nextFloat() * 0.2f)
+        )
+
         player.world.spawn(muzzle, Snowball::class.java).apply {
             item = projectileItem
             setGravity(!SplatoonSettings.gunDisableGravity)
@@ -153,6 +163,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
             setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
         }
+
     }
 
     private fun resolveTeams(

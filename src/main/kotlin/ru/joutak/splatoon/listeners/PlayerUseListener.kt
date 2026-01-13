@@ -5,6 +5,7 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.Sound
 import org.bukkit.entity.Snowball
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -62,6 +63,9 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             val projectileItem = createProjectileItem("Bomb")
 
             val dir = player.eyeLocation.direction.normalize()
+
+            // Throw sound for everyone nearby.
+            player.world.playSound(player.location, Sound.ENTITY_SNOWBALL_THROW, 0.75f, 0.85f)
 
             player.world.spawn(
                 Location(

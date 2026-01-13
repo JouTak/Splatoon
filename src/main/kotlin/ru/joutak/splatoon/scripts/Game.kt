@@ -77,6 +77,13 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     val maxInkHp: Int = SplatoonSettings.inkMaxHp
     private val inkHp: MutableMap<UUID, Int> = mutableMapOf()
 
+    private val inkRegenCarry: MutableMap<UUID, Double> = mutableMapOf()
+    private val inkLastDamageAt: MutableMap<UUID, Long> = mutableMapOf()
+
+    private val hitMarkerActionbarTicks = 30
+    private val actionBarOverlayUntilMs: MutableMap<UUID, Long> = mutableMapOf()
+    private val actionBarOverlayText: MutableMap<UUID, Component> = mutableMapOf()
+
     private var ended = false
 
     fun shutdownGame() {
@@ -94,6 +101,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spawnProtectedOrigin.clear()
         spawnProtectionMoved.clear()
         inkHp.clear()
+        inkRegenCarry.clear()
+        inkLastDamageAt.clear()
+        actionBarOverlayUntilMs.clear()
+        actionBarOverlayText.clear()
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
@@ -113,11 +124,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         }
     }
 
+    fun pushActionBarOverlay(uuid: UUID, component: Component, durationTicks: Int = hitMarkerActionbarTicks) {
+        if (durationTicks <= 0) return
+        actionBarOverlayText[uuid] = component
+        actionBarOverlayUntilMs[uuid] = System.currentTimeMillis() + durationTicks * 50L
+    }
+
     fun startGame(worldName: String) {
         activeTeams = commands.values.toSet().sorted()
 
         commands.keys.forEach { uuid ->
             inkHp[uuid] = maxInkHp
+            inkRegenCarry.remove(uuid)
+            inkLastDamageAt.remove(uuid)
             val player = Bukkit.getPlayer(uuid) ?: return@forEach
             player.inventory.clear()
             ensureInkHealth(player)
@@ -147,6 +166,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spawnProtectedOrigin.clear()
         spawnProtectionMoved.clear()
         inkHp.clear()
+        inkRegenCarry.clear()
+        inkLastDamageAt.clear()
+        actionBarOverlayUntilMs.clear()
+        actionBarOverlayText.clear()
 
         val winner = determineWinner()
 
@@ -326,15 +349,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private fun sendStartInstructions() {
         commands.keys.forEach { id ->
             val p = Bukkit.getPlayer(id) ?: return@forEach
-            p.sendMessage(Component.text("§6§lSplatoon §7— закрась арену своей командой и набери больше %!"))
-            p.sendMessage(Component.text("§f• §eПКМ пушкой §7— выстрел краской (${maxInkHp} ❤ — это ваши чернила-хп)"))
-            p.sendMessage(Component.text("§f• §eПКМ бомбой §7— взрывная покраска"))
+            p.sendMessage(Component.text("§6§lSplatoon §7— закрась арену своим цветом и набери больше %!"))
+            p.sendMessage(Component.text("§f• §eПКМ пушкой §7— выстрел краской (Противников можно взорвать, у вас ${maxInkHp} ХП"))
+            p.sendMessage(Component.text("§f• §eПКМ бомбочкой §7— взрыв краски"))
             p.sendMessage(
                 Component.text(
-                    "§f• §dБацилла §7(Bacillus) — §eударь игрока§7, он будет стрелять вашим цветом ${SplatoonSettings.bacillusDurationSeconds}с"
+                    "§f• §dБацилла §7 — §eударь игрока (ЛКМ), и он будет стрелять твоим цветом ${SplatoonSettings.bacillusDurationSeconds} секунд"
                 )
             )
-            p.sendMessage(Component.text("§f• §aНа своей краске §7вы не теряете ❤ от попаданий"))
+            p.sendMessage(Component.text("§f• §aУдерживая shift на своей краске §7вы скрываетесь и лечитесь ❤"))
         }
     }
 
@@ -343,6 +366,12 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         actionBarTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
             commands.keys.forEach { id ->
                 val p = Bukkit.getPlayer(id) ?: return@forEach
+
+                // Keep the HP bar strictly in sync with Ink HP and apply squid regen on own ink.
+                syncHealthBar(p)
+                keepFoodFull(p)
+                tickInkRegen(p)
+
                 updateSpawnProtectionMovement(p)
                 val spawnSafe = isSpawnSafe(p)
                 updateSpawnGlow(p, spawnSafe)
@@ -351,9 +380,68 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         }, 0L, SplatoonSettings.actionbarUpdateTicks)
     }
 
+    private fun keepFoodFull(player: Player) {
+        if (player.foodLevel != 20) player.foodLevel = 20
+        if (player.saturation < 20f) player.saturation = 20f
+        if (player.exhaustion != 0f) player.exhaustion = 0f
+    }
+
+    private fun tickInkRegen(player: Player) {
+        if (!SplatoonSettings.inkRegenEnabled) return
+        val uuid = player.uniqueId
+        val cur = getInkHp(uuid)
+        if (cur >= maxInkHp) {
+            inkRegenCarry.remove(uuid)
+            return
+        }
+
+        // Regen only while sneaking on own ink (squid mode).
+        if (!player.isSneaking) {
+            inkRegenCarry.remove(uuid)
+            return
+        }
+
+        val invisEnabled = SplatoonSettings.sneakOnInkInvisibilityAmplifier >= 0
+        val squidEffectOk = if (invisEnabled) {
+            player.hasPotionEffect(PotionEffectType.INVISIBILITY)
+        } else {
+            player.hasPotionEffect(PotionEffectType.SPEED)
+        }
+        if (!squidEffectOk) {
+            inkRegenCarry.remove(uuid)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        val lastDamage = inkLastDamageAt[uuid] ?: 0L
+        val delayMs = SplatoonSettings.inkRegenDelayAfterDamageSeconds * 1000L
+        if (delayMs > 0 && now - lastDamage < delayMs) return
+
+        val dtSeconds = SplatoonSettings.actionbarUpdateTicks.toDouble() / 20.0
+        val add = SplatoonSettings.inkRegenRatePerSecond * dtSeconds
+        if (add <= 0.0) return
+
+        var carry = (inkRegenCarry[uuid] ?: 0.0) + add
+        var hp = cur
+        while (carry >= 1.0 && hp < maxInkHp) {
+            hp += 1
+            carry -= 1.0
+        }
+
+        inkRegenCarry[uuid] = carry
+        if (hp != cur) {
+            inkHp[uuid] = hp
+            syncHealthBar(player)
+        }
+    }
+
+
     private fun buildActionBar(player: Player, spawnSafe: Boolean): Component {
         var hasAny = false
-        var c = Component.empty()
+        // IMPORTANT: keep this typed as Component.
+        // In some Adventure/Paper versions Component.empty() is TextComponent,
+        // and Kotlin may infer TextComponent here, causing type mismatches on later assignments.
+        var c: Component = Component.empty()
 
         val base = commands[player.uniqueId]
         val ov = ammoOverride[player.uniqueId]
@@ -368,6 +456,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         if (spawnSafe) {
             if (hasAny) c = c.append(Component.text("  "))
             c = c.append(Component.text("SPAWN", NamedTextColor.GREEN))
+            hasAny = true
+        }
+
+        val now = System.currentTimeMillis()
+        val overlayUntil = actionBarOverlayUntilMs[player.uniqueId] ?: 0L
+        val overlay = if (overlayUntil > now) actionBarOverlayText[player.uniqueId] else null
+        if (overlayUntil <= now) {
+            actionBarOverlayUntilMs.remove(player.uniqueId)
+            actionBarOverlayText.remove(player.uniqueId)
+        }
+
+        if (overlay != null) {
+            c = if (hasAny) overlay.append(Component.text("  ")).append(c) else overlay
             hasAny = true
         }
 
@@ -387,6 +488,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val cur = getInkHp(uuid)
         val next = (cur - amount).coerceIn(0, maxInkHp)
         inkHp[uuid] = next
+        inkLastDamageAt[uuid] = System.currentTimeMillis()
+        inkRegenCarry[uuid] = 0.0
         syncHealthBar(uuid)
         return next
     }
@@ -405,9 +508,39 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
+
+            // Для BOW клиенту нужен "патрон" (arrow), иначе ПКМ по воздуху может вообще не стартовать.
+            // Визуально его можно заменить на снежок через items/arrow.json по minecraft:custom_name.
+            ensureBowAmmo(p)
         }
     }
 
+    private fun ensureBowAmmo(player: Player) {
+        val ammoKey = NamespacedKey(SplatoonPlugin.instance, "splatAmmo")
+        val inv = player.inventory
+
+        // Если уже есть наш патрон — просто обновим цвет.
+        var ammoSlot = -1
+        for (i in 0 until inv.size) {
+            val it = inv.getItem(i) ?: continue
+            if (it.type == Material.AIR || !it.hasItemMeta()) continue
+            if (it.itemMeta.persistentDataContainer.has(ammoKey, PersistentDataType.BOOLEAN)) {
+                ammoSlot = i
+                break
+            }
+        }
+
+        val baseTeam = commands[player.uniqueId] ?: 0
+        val paintTeam = getAmmoTeam(player.uniqueId) ?: baseTeam
+        val colorName = when (paintTeam) {
+            0 -> "Red"
+            3 -> "Blue"
+            2 -> "Green"
+            1 -> "Yellow"
+            else -> "Red"
+        }
+
+    }
 
     private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
         for (i in 9..35) {

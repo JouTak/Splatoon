@@ -2,6 +2,7 @@ package ru.joutak.splatoon.listeners
 
 import org.bukkit.Bukkit
 import org.bukkit.Material
+import org.bukkit.Sound
 import org.bukkit.World
 import org.bukkit.block.Block
 import org.bukkit.entity.EntityType
@@ -9,6 +10,8 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.config.SplatoonSettings
@@ -19,6 +22,8 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 class ProjectileHitListener : Listener {
+
+    private val lastShooterHitMs = mutableMapOf<UUID, Long>()
 
     @EventHandler
     fun projectileHitEvent(event: ProjectileHitEvent) {
@@ -56,6 +61,14 @@ class ProjectileHitListener : Listener {
                 return
             }
 
+            // Impact sound for nearby players.
+            if (isBomb) {
+                victim.world.playSound(victim.location, Sound.ENTITY_GENERIC_EXPLODE, 1.8f, 1.0f)
+                victim.world.playSound(victim.location, Sound.ENTITY_SLIME_SQUISH_SMALL, 1.0f, 0.8f)
+            } else {
+                victim.world.playSound(victim.location, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
+            }
+
             val victimProtectedByInk = victim.hasPotionEffect(PotionEffectType.INVISIBILITY)
             val spawnSafe = game.isSpawnSafe(victim)
 
@@ -67,6 +80,10 @@ class ProjectileHitListener : Listener {
             if (shooterTeam == victimTeam) return
 
             val hpLeft = game.damageInkHp(victim.uniqueId, 1)
+
+            // Hit markers (sound + tiny actionbar) for both sides.
+            playHitMarker(shooter, victim, hpLeft, game)
+
             if (hpLeft <= 0) {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
@@ -81,9 +98,15 @@ class ProjectileHitListener : Listener {
         val center = hitBlock.getRelative(hitFace).location
 
         if (!isBomb) {
+            // Splat on blocks should be audible to anyone nearby.
+            entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
             explosivePaint(radius, center, entity.world, game, shooter.uniqueId, paintTeam, null)
             return
         }
+
+        // Bomb explosion sound for everyone nearby.
+        entity.world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 2.1f, 1.0f)
+        entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 1.2f, 0.75f)
 
         val victims = entity.world.getNearbyEntities(center, radius, radius, radius)
             .filterIsInstance<Player>()
@@ -104,6 +127,10 @@ class ProjectileHitListener : Listener {
             if (shooterTeam == victimTeam) return@forEach
 
             val hpLeft = game.damageInkHp(victim.uniqueId, 1)
+
+            // Bomb AOE: mark hits too (throttled for shooter).
+            playHitMarker(shooter, victim, hpLeft, game)
+
             if (hpLeft <= 0) {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
@@ -111,6 +138,33 @@ class ProjectileHitListener : Listener {
                 explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
         }
+    }
+
+    private fun playHitMarker(shooter: Player, victim: Player, victimHpLeft: Int, game: Game) {
+        // Shooter: short "hitmarker" sound. Throttle so bombs don't spam the ear.
+        val now = System.currentTimeMillis()
+        val last = lastShooterHitMs[shooter.uniqueId] ?: 0L
+        if (now - last >= 120L) {
+            shooter.playSound(shooter.location, Sound.ENTITY_ARROW_HIT_PLAYER, 0.7f, 1.6f)
+            lastShooterHitMs[shooter.uniqueId] = now
+
+            game.pushActionBarOverlay(
+                shooter.uniqueId,
+                Component.text("✦ HIT ", NamedTextColor.GREEN)
+                    .append(Component.text("(${victimHpLeft}/${SplatoonSettings.inkMaxHp})", NamedTextColor.GRAY))
+            )
+        }
+
+        // Victim: hurt confirmation (since we cancel vanilla damage, MC won't always play it).
+        victim.playSound(victim.location, Sound.ENTITY_PLAYER_HURT, 0.6f, 1.1f)
+        game.pushActionBarOverlay(
+            victim.uniqueId,
+            Component.text("✹ HIT ", NamedTextColor.RED)
+                .append(Component.text("(${victimHpLeft}/${SplatoonSettings.inkMaxHp})", NamedTextColor.GRAY))
+        )
+
+        // Keep the HP bar synced immediately.
+        game.syncHealthBar(victim)
     }
 
     private fun splatAndRespawn(player: Player, game: Game) {
