@@ -1,8 +1,8 @@
 package ru.joutak.splatoon.scripts
 
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.sound.Sound
-import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
@@ -24,14 +24,16 @@ import org.bukkit.scheduler.BukkitTask
 import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
-import ru.joutak.minigames.domain.GameResult
-import ru.joutak.minigames.domain.Player as MiniPlayer
-import ru.joutak.minigames.storage.GameResultStorage
+import ru.joutak.minigames.MiniGamesAPI
+import ru.joutak.minigames.results.model.MatchResult
+import ru.joutak.minigames.results.model.Metric
+import ru.joutak.minigames.results.model.PlayerResult
+import ru.joutak.minigames.results.model.TeamResult
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SpawnPoint
 import ru.joutak.splatoon.config.SplatoonSettings
+import ru.joutak.splatoon.util.SplatoonAttributes
 import java.time.Duration
-import java.time.LocalDateTime
 import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -39,6 +41,13 @@ import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class Game(var worldName: String, val arenaId: String, private val teamSpawns: Map<Int, List<SpawnPoint>>) {
+
+    // Results (shared DB via MiniGamesAPI)
+    val matchId: UUID = UUID.randomUUID()
+    val startedAtMs: Long = System.currentTimeMillis()
+    @Volatile
+    private var resultsSent: Boolean = false
+
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
     val kills: MutableMap<UUID, Int> = mutableMapOf()
@@ -50,6 +59,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         1 to Material.YELLOW_CONCRETE
     )
     var commands: MutableMap<UUID, Int> = mutableMapOf()
+
+    private val playerNames: MutableMap<UUID, String> = mutableMapOf()
+    private val playerTeamsSnapshot: MutableMap<UUID, Int> = mutableMapOf()
+    private val playerJoinedAtMs: MutableMap<UUID, Long> = mutableMapOf()
+    private val playerLeftAtMs: MutableMap<UUID, Long> = mutableMapOf()
 
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
@@ -106,6 +120,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         actionBarOverlayUntilMs.clear()
         actionBarOverlayText.clear()
 
+        playerNames.clear()
+        playerTeamsSnapshot.clear()
+        playerJoinedAtMs.clear()
+        playerLeftAtMs.clear()
+
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
         val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
@@ -113,6 +132,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         commands.keys.forEach { playerId ->
             val player = Bukkit.getPlayer(playerId) ?: return@forEach
             player.scoreboard = emptyScoreboard
+            SplatoonAttributes.removeBowNoSlow(player)
             player.inventory.clear()
             restoreVanillaHealth(player)
             player.foodLevel = 20
@@ -133,6 +153,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     fun startGame(worldName: String) {
         activeTeams = commands.values.toSet().sorted()
 
+        // Snapshot players for results (including possible leavers).
+        val joinAt = startedAtMs
+        commands.forEach { (uuid, team) ->
+            playerTeamsSnapshot[uuid] = team
+            playerJoinedAtMs.putIfAbsent(uuid, joinAt)
+            playerLeftAtMs.remove(uuid)
+            val p = Bukkit.getPlayer(uuid)
+            if (p != null) playerNames[uuid] = p.name
+        }
+
         commands.keys.forEach { uuid ->
             inkHp[uuid] = maxInkHp
             inkRegenCarry.remove(uuid)
@@ -146,6 +176,22 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         }
 
         startCountdown(worldName)
+    }
+
+    fun markPlayerLeft(uuid: UUID) {
+        if (!playerJoinedAtMs.containsKey(uuid)) {
+            playerJoinedAtMs[uuid] = startedAtMs
+        }
+
+        val team = playerTeamsSnapshot[uuid] ?: commands[uuid]
+        if (team != null) playerTeamsSnapshot[uuid] = team
+
+        if (!playerNames.containsKey(uuid)) {
+            val p = Bukkit.getPlayer(uuid)
+            if (p != null) playerNames[uuid] = p.name
+        }
+
+        playerLeftAtMs.putIfAbsent(uuid, System.currentTimeMillis())
     }
 
     fun endGame(worldName: String) {
@@ -173,6 +219,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         val winner = determineWinner()
 
+        sendMatchResultsIfNeeded(winner)
+
         Bukkit.getScheduler().runTask(SplatoonPlugin.instance, Runnable {
             showWinnerAnnouncement(winner)
         })
@@ -187,28 +235,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         )
 
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
-
-        val participantsList = mutableListOf<MiniPlayer>()
-        val winnersList = mutableListOf<MiniPlayer>()
-
-        commands.keys.forEach { uuid ->
-            val player = Bukkit.getPlayer(uuid)
-            if (player != null) {
-                val participant = MiniPlayer(name = player.name)
-                participantsList.add(participant)
-                if (commands[uuid] == winner) winnersList.add(participant)
-            }
-        }
-
-        val result = GameResult(
-            gameUuid = UUID.randomUUID(),
-            gameName = "Splatoon",
-            participants = participantsList,
-            winners = winnersList,
-            dateTime = LocalDateTime.now(),
-            results = paintedPerson.toMap()
-        )
-        GameResultStorage.save(result)
 
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
@@ -235,6 +261,96 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
             GameManager.deleteGame(this.worldName, this)
         }, SplatoonSettings.returnToLobbyDelaySeconds * 20L)
+    }
+
+    private fun sendMatchResultsIfNeeded(winnerTeam: Int) {
+        if (resultsSent) return
+        resultsSent = true
+
+        val endedAtMs = System.currentTimeMillis()
+
+        val allTeams = (playerTeamsSnapshot.values + commands.values).toSet().sorted()
+
+        // Scores are in percent (0..100) if totalPaintableBlocks is known.
+        val scoreByTeam = mutableMapOf<Int, Double>()
+        allTeams.forEach { t ->
+            val blocks = paintedCommand[t] ?: 0
+            val pct = if (totalPaintableBlocks > 0) blocks * 100.0 / totalPaintableBlocks else blocks.toDouble()
+            scoreByTeam[t] = pct
+        }
+
+        val sortedTeams = allTeams.sortedWith(compareByDescending<Int> { scoreByTeam[it] ?: 0.0 }.thenBy { it })
+        val placementByTeam = mutableMapOf<Int, Int>()
+        var place = 1
+        sortedTeams.forEach { t ->
+            placementByTeam[t] = place
+            place++
+        }
+
+        val teamPlayerCounts = mutableMapOf<Int, Int>()
+        playerTeamsSnapshot.values.forEach { t ->
+            teamPlayerCounts[t] = (teamPlayerCounts[t] ?: 0) + 1
+        }
+
+        val teams = allTeams.map { t ->
+            val blocks = paintedCommand[t] ?: 0
+            val pct = scoreByTeam[t] ?: 0.0
+            TeamResult(
+                teamId = t + 1,
+                placement = placementByTeam[t],
+                isWinner = t == winnerTeam,
+                score = pct,
+                metrics = listOf(
+                    Metric.int("paint_blocks", blocks.toLong()),
+                    Metric.real("paint_percent", pct),
+                    Metric.int("players", (teamPlayerCounts[t] ?: 0).toLong())
+                )
+            )
+        }
+
+        val allPlayers = mutableSetOf<UUID>()
+        allPlayers.addAll(playerTeamsSnapshot.keys)
+        allPlayers.addAll(commands.keys)
+        allPlayers.addAll(paintedPerson.keys)
+        allPlayers.addAll(kills.keys)
+
+        val players = allPlayers.map { uuid ->
+            val team = playerTeamsSnapshot[uuid] ?: commands[uuid]
+
+            val name = playerNames[uuid]
+                ?: Bukkit.getPlayer(uuid)?.name
+                ?: Bukkit.getOfflinePlayer(uuid).name
+
+            val paintBlocks = paintedPerson[uuid] ?: 0
+            val paintPct = if (totalPaintableBlocks > 0) paintBlocks * 100.0 / totalPaintableBlocks else paintBlocks.toDouble()
+            val k = kills[uuid] ?: 0
+
+            PlayerResult(
+                playerUuid = uuid,
+                playerName = name,
+                teamId = team?.plus(1),
+                isWinner = team != null && team == winnerTeam,
+                joinedAtMs = playerJoinedAtMs[uuid],
+                leftAtMs = playerLeftAtMs[uuid],
+                metrics = listOf(
+                    Metric.int("kills", k.toLong()),
+                    Metric.int("paint_blocks", paintBlocks.toLong()),
+                    Metric.real("paint_percent", paintPct),
+                )
+            )
+        }
+
+        val result = MatchResult(
+            matchId = matchId,
+            startedAtMs = startedAtMs,
+            endedAtMs = endedAtMs,
+            mapKey = arenaId,
+            teams = teams,
+            players = players
+        )
+
+        // Safe when results are disabled; do not block the main thread.
+        MiniGamesAPI.recordMatchResult(result)
     }
 
     private fun determineWinner(): Int {
@@ -548,14 +664,12 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             m.persistentDataContainer.set(ammoKey, PersistentDataType.BOOLEAN, true)
             created.itemMeta = m
 
-            // Кладём в основной инвентарь (не в хотбар), чтобы не занимать слоты, но лук работал.
             val slot = firstEmptyMainInvSlot(inv) ?: 35
             inv.setItem(slot, created)
             ammoSlot = slot
             created
         }
 
-        // Чтобы "стрела" могла быть заменена в ресурспаке — держим custom_name под текущий цвет (Bacillus).
         item.setData(DataComponentTypes.CUSTOM_NAME, Component.text(colorName))
         inv.setItem(ammoSlot, item)
     }

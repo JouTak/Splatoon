@@ -45,11 +45,11 @@ object GameManager {
     }
 
     fun removePlayerFromGame(uuid: UUID) {
-        val game = playerGame.remove(uuid)
-        if (game != null) {
-            game.commands.remove(uuid)
-            game.paintedPerson.remove(uuid)
-        }
+        val game = playerGame.remove(uuid) ?: return
+
+        // Keep player stats for end-of-match results, but exclude the player from active match logic.
+        game.markPlayerLeft(uuid)
+        game.commands.remove(uuid)
     }
 
     fun setAdminAmmoOverride(uuid: UUID, team: Int, durationMs: Long) {
@@ -113,7 +113,7 @@ object GameManager {
             return
         }
 
-        val mvWorld = multiverseCore.mvWorldManager.getMVWorld(template)
+        val mvWorld = multiverseCore.mvWorldManager.getMVWorld(template.name)
         if (mvWorld != null) {
             mvWorld.setTime("day")
             mvWorld.setEnableWeather(false)
