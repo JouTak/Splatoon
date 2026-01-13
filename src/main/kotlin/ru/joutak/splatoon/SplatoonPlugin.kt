@@ -1,7 +1,6 @@
 package ru.joutak.splatoon
 
 import org.bukkit.Bukkit
-import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
 import ru.joutak.minigames.MiniGamesCore
 import ru.joutak.minigames.domain.GameInstanceConfig
@@ -27,22 +26,14 @@ class SplatoonPlugin : JavaPlugin() {
         lateinit var instance: SplatoonPlugin
     }
 
-    var mapName = ""
-    var lobbyName = ""
-
-    private lateinit var customConfig: YamlConfiguration
-
     private fun loadConfig() {
         val fx = File(dataFolder, "config.yml")
         if (!fx.exists()) saveResource("config.yml", false)
 
-        customConfig = YamlConfiguration.loadConfiguration(fx)
-        SplatoonSettings.load(customConfig, logger)
+        val config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(fx)
+        SplatoonSettings.load(config, logger)
 
-        mapName = SplatoonSettings.defaultTemplateWorld
-        lobbyName = SplatoonSettings.lobbyWorldName
-
-        GameManager.registerTemplateWorld(mapName)
+        GameManager.registerTemplateWorld(SplatoonSettings.defaultTemplateWorld)
     }
 
     private fun loadArenas() {
@@ -54,7 +45,14 @@ class SplatoonPlugin : JavaPlugin() {
                     id = arena.id,
                     teamCount = arena.teamCount,
                     playersPerTeam = arena.playersPerTeam,
-                    meta = mapOf("world" to arena.templateWorld)
+                    meta = mapOf(
+                        "world" to arena.templateWorld,
+                        // MiniGamesAPI expands each config into a pool (parallel instances) using meta["pool_size"].
+                        // This allows multiple matches on the same template world.
+                        "pool_size" to arena.instances,
+                        // Keep a stable arena id even if instance config ids change in future.
+                        "arenaId" to arena.id
+                    )
                 )
             )
             GameManager.registerTemplateWorld(arena.templateWorld)

@@ -105,7 +105,7 @@ object GameManager {
 
         val templateWorldName = arenaSettings?.templateWorld
             ?: (instance.config.meta["world"] as? String)
-            ?: SplatoonPlugin.instance.mapName
+            ?: SplatoonSettings.defaultTemplateWorld
 
         val template = Bukkit.getWorld(templateWorldName)
         if (template == null) {

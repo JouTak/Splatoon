@@ -1,8 +1,8 @@
 package ru.joutak.splatoon.scripts
 
-import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.sound.Sound
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
@@ -540,6 +540,24 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             else -> "Red"
         }
 
+        val item = if (ammoSlot >= 0) {
+            inv.getItem(ammoSlot) ?: return
+        } else {
+            val created = ItemStack(Material.ARROW, 1)
+            val m = created.itemMeta
+            m.persistentDataContainer.set(ammoKey, PersistentDataType.BOOLEAN, true)
+            created.itemMeta = m
+
+            // Кладём в основной инвентарь (не в хотбар), чтобы не занимать слоты, но лук работал.
+            val slot = firstEmptyMainInvSlot(inv) ?: 35
+            inv.setItem(slot, created)
+            ammoSlot = slot
+            created
+        }
+
+        // Чтобы "стрела" могла быть заменена в ресурспаке — держим custom_name под текущий цвет (Bacillus).
+        item.setData(DataComponentTypes.CUSTOM_NAME, Component.text(colorName))
+        inv.setItem(ammoSlot, item)
     }
 
     private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
