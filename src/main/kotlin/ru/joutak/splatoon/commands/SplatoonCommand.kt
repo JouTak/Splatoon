@@ -35,7 +35,6 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
             when (args[1].lowercase()) {
                 "gun" -> {
                     sender.inventory.addItem(AdminItems.gun())
-                    if (!hasAmmo(sender)) sender.inventory.addItem(AdminItems.ammo())
                     sender.sendMessage("§aВыдано: Сплат-пушка")
                 }
 

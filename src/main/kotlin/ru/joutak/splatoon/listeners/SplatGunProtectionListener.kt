@@ -18,7 +18,7 @@ class SplatGunProtectionListener(private val plugin: Plugin) : Listener {
 
     @EventHandler(ignoreCancelled = true)
     fun onDrop(event: PlayerDropItemEvent) {
-        if (isSplatGun(event.itemDrop.itemStack)) {
+        if (isProtectedItem(event.itemDrop.itemStack)) {
             event.isCancelled = true
         }
     }
@@ -31,7 +31,7 @@ class SplatGunProtectionListener(private val plugin: Plugin) : Listener {
             action == InventoryAction.DROP_ALL_CURSOR ||
             action == InventoryAction.DROP_ONE_CURSOR
         ) {
-            if (isSplatGun(event.cursor)) event.isCancelled = true
+            if (isProtectedItem(event.cursor)) event.isCancelled = true
             return
         }
 
@@ -39,16 +39,16 @@ class SplatGunProtectionListener(private val plugin: Plugin) : Listener {
             action == InventoryAction.DROP_ALL_SLOT ||
             action == InventoryAction.DROP_ONE_SLOT
         ) {
-            if (isSplatGun(event.currentItem)) event.isCancelled = true
+            if (isProtectedItem(event.currentItem)) event.isCancelled = true
             return
         }
 
         if (event.click == ClickType.DROP || event.click == ClickType.CONTROL_DROP) {
-            if (isSplatGun(event.currentItem)) event.isCancelled = true
+            if (isProtectedItem(event.currentItem)) event.isCancelled = true
         }
     }
 
-    private fun isSplatGun(item: ItemStack?): Boolean {
+    private fun isProtectedItem(item: ItemStack?): Boolean {
         if (item == null || item.type == Material.AIR) return false
         if (!item.hasItemMeta()) return false
         val pdc = item.itemMeta.persistentDataContainer

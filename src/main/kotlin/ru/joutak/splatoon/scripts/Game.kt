@@ -1,5 +1,6 @@
 package ru.joutak.splatoon.scripts
 
+import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component
@@ -394,8 +395,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val item = ItemStack(Material.BOW, 1)
         val meta = item.itemMeta
         meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
-        meta.addEnchant(org.bukkit.enchantments.Enchantment.INFINITY, 1, true)
-        meta.isUnbreakable = true
         meta.persistentDataContainer.set(
             NamespacedKey(SplatoonPlugin.instance, "splatGun"),
             PersistentDataType.BOOLEAN,
@@ -406,25 +405,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
-            ensureGunAmmo(p)
         }
     }
 
-    private fun ensureGunAmmo(player: Player) {
-        val ammoKey = NamespacedKey(SplatoonPlugin.instance, "splatAmmo")
-        val hasAmmo = player.inventory.contents.any { st ->
-            st != null && st.type == Material.ARROW && st.hasItemMeta() && st.itemMeta
-                .persistentDataContainer
-                .has(ammoKey, PersistentDataType.BOOLEAN)
-        }
-        if (hasAmmo) return
 
-        val arrow = ItemStack(Material.ARROW, 1)
-        val m = arrow.itemMeta
-        m.displayName(Component.text("Патроны").color(NamedTextColor.GRAY))
-        m.persistentDataContainer.set(ammoKey, PersistentDataType.BOOLEAN, true)
-        arrow.itemMeta = m
-        player.inventory.addItem(arrow)
+    private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
+        for (i in 9..35) {
+            val it = inv.getItem(i)
+            if (it == null || it.type == Material.AIR) return i
+        }
+        return null
     }
 
     private fun playSoundToAllPlayers(sound: Sound) {

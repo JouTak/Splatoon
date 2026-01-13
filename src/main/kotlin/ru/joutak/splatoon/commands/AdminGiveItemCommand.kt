@@ -10,8 +10,8 @@ import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
-import org.bukkit.enchantments.Enchantment
 import org.bukkit.plugin.Plugin
+import io.papermc.paper.datacomponent.DataComponentTypes
 
 class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) : CommandExecutor {
 
@@ -39,17 +39,23 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         }
 
         sender.inventory.addItem(item)
+
         return true
+    }
+
+
+    private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
+        for (i in 9..35) {
+            val it = inv.getItem(i)
+            if (it == null || it.type == Material.AIR) return i
+        }
+        return null
     }
 
     private fun createItem(material: Material, name: String, key: String): ItemStack {
         val item = ItemStack(material, 1)
         val meta = item.itemMeta
         meta.displayName(Component.text(name).color(TextColor.color(0xFF55FF)))
-        if (material == Material.BOW && key == "splatGun") {
-            meta.addEnchant(Enchantment.INFINITY, 1, true)
-            meta.isUnbreakable = true
-        }
         meta.persistentDataContainer.set(NamespacedKey(plugin, key), PersistentDataType.BOOLEAN, true)
         item.itemMeta = meta
         return item
