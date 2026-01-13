@@ -26,6 +26,7 @@ import org.bukkit.util.Vector
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
+import ru.joutak.splatoon.util.SplatoonAttributes
 import java.lang.reflect.Method
 import java.util.UUID
 import kotlin.random.Random
@@ -74,6 +75,10 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val (baseTeam, paintTeam) = resolveTeams(player, game, pdc) ?: return
         ensureAmmoFallback(player, teamToColorName(paintTeam))
 
+        // Убираем замедление от натяжения тетивы (без potion-эффектов скорости).
+        // Компенсируем и потерю sprint (если игрок уже бежал), чтобы не было рывка при отпускании.
+        SplatoonAttributes.applyBowNoSlow(player, player.isSprinting)
+
         // Если на сборке доступен startUsingItem — форсим "using item" сервером (чтобы не зависеть от нюансов клиента).
         // Для клика по блоку отменяем ванильное взаимодействие, чтобы не открывать/не нажимать блоки.
         val forced = tryStartUsingItem(player)
@@ -98,6 +103,10 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val meta = item.itemMeta ?: return
         val pdc = meta.persistentDataContainer
         if (!pdc.has(gunKey, PersistentDataType.BOOLEAN)) return
+
+        // Срабатывает именно на отпускании натяжения — снимаем no-slow мгновенно,
+        // чтобы не оставалось 1 тика "ускорения" после release.
+        stopFiring(shooter.uniqueId)
 
         event.isCancelled = true
         event.setConsumeItem(false)
@@ -208,6 +217,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
         val p = plugin.server.getPlayer(uuid)
         if (p != null) {
+            SplatoonAttributes.removeBowNoSlow(p)
             tryStopUsingItem(p)
         }
     }
