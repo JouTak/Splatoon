@@ -31,6 +31,7 @@ dependencies {
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
     implementation("ru.joutak:minigamesapi:2.6.0-73")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.7")
 }
 
 kotlin {
