@@ -38,7 +38,7 @@ class BoostPickupListener(private val plugin: Plugin) : Listener {
         if (pdc.has(bac, PersistentDataType.BOOLEAN)) {
             val t = Title.title(
                 Component.text("БУСТ ПОЛУЧЕН!", NamedTextColor.LIGHT_PURPLE),
-                Component.text("Бацилла (Bacillus)", NamedTextColor.GRAY),
+                Component.text("Бацилла", NamedTextColor.GRAY),
                 Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(1200), Duration.ofMillis(150))
             )
             player.showTitle(t)
