@@ -25,6 +25,13 @@ ink:
   # How many hits a player can take (Ink HP)
   max_hp: 3
 
+  regen:
+    # Ink HP regeneration while player is in squid mode (INVISIBILITY)
+    enabled: true
+    # 1.0 = +1 Ink HP per second
+    rate_per_second: 0.5
+    delay_after_damage_seconds: 2
+
 spawn_protection:
   # Players are protected inside this radius around their team spawn points
   radius_blocks: 7.0

@@ -51,6 +51,17 @@ object SplatoonSettings {
     var inkMaxHp: Int = 3
         private set
 
+    var inkRegenEnabled: Boolean = true
+        private set
+
+    // While player is in "squid" mode (INVISIBILITY effect)
+    // 1.0 = +1 Ink HP per second
+    var inkRegenRatePerSecond: Double = 0.5
+        private set
+
+    var inkRegenDelayAfterDamageSeconds: Int = 2
+        private set
+
     var spawnProtectionRadius: Double = 7.0
         private set
 
@@ -163,6 +174,16 @@ object SplatoonSettings {
         actionbarUpdateTicks = max(1, config.getLong("game.actionbar_update_ticks", 5))
 
         inkMaxHp = max(1, config.getInt("ink.max_hp", 3))
+
+        // Ink HP regeneration while player is in squid mode (INVISIBILITY).
+        // Backward compatible with older key: ink.regen_on_own_color.*
+        val legacyRegenPath = "ink.regen_on_own_color"
+        inkRegenEnabled = config.getBoolean("ink.regen.enabled", config.getBoolean("$legacyRegenPath.enabled", true))
+        inkRegenRatePerSecond = config.getDouble("ink.regen.rate_per_second", config.getDouble("$legacyRegenPath.rate_per_second", 0.5)).coerceAtLeast(0.0)
+        inkRegenDelayAfterDamageSeconds = max(
+            0,
+            config.getInt("ink.regen.delay_after_damage_seconds", config.getInt("$legacyRegenPath.delay_after_damage_seconds", 2))
+        )
 
         spawnProtectionRadius = config.getDouble("spawn_protection.radius_blocks", 7.0).coerceAtLeast(0.0)
         spawnProtectionAfterRespawnSeconds = max(0, config.getInt("spawn_protection.after_respawn_seconds", 4))
