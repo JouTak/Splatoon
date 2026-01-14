@@ -18,7 +18,6 @@ import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
 import ru.joutak.splatoon.scripts.GameManager
-import ru.joutak.splatoon.util.SplatoonAttributes
 import java.io.File
 
 class SplatoonPlugin : JavaPlugin() {
@@ -101,8 +100,6 @@ class SplatoonPlugin : JavaPlugin() {
     }
 
     override fun onDisable() {
-        // На случай перезагрузки/disable во время натяжения лука.
-        server.onlinePlayers.forEach { SplatoonAttributes.removeBowNoSlow(it) }
         GameManager.shutdownAllGames()
     }
 }

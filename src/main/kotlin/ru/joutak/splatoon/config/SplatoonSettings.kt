@@ -62,9 +62,6 @@ object SplatoonSettings {
     var inkRegenDelayAfterDamageSeconds: Int = 2
         private set
 
-    var spawnProtectionRadius: Double = 7.0
-        private set
-
     var spawnProtectionAfterRespawnSeconds: Int = 4
         private set
 
@@ -185,7 +182,6 @@ object SplatoonSettings {
             config.getInt("ink.regen.delay_after_damage_seconds", config.getInt("$legacyRegenPath.delay_after_damage_seconds", 2))
         )
 
-        spawnProtectionRadius = config.getDouble("spawn_protection.radius_blocks", 7.0).coerceAtLeast(0.0)
         spawnProtectionAfterRespawnSeconds = max(0, config.getInt("spawn_protection.after_respawn_seconds", 4))
         spawnProtectionResistanceDurationTicks = max(0, config.getInt("spawn_protection.resistance_duration_ticks", 60))
         spawnProtectionResistanceAmplifier = max(0, config.getInt("spawn_protection.resistance_amplifier", 10))

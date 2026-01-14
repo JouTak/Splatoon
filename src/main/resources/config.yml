@@ -33,10 +33,9 @@ ink:
     delay_after_damage_seconds: 2
 
 spawn_protection:
-  # Players are protected inside this radius around their team spawn points
-  radius_blocks: 7.0
-
-  # Additional protection time after respawn
+  # Additional protection time after respawn.
+  # If the player doesn't move away from the spawn block, protection won't end by time.
+  # Using the gun (holding RMB) immediately disables protection.
   after_respawn_seconds: 4
 
   # Effects applied on respawn

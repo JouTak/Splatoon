@@ -32,7 +32,6 @@ import ru.joutak.minigames.results.model.TeamResult
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SpawnPoint
 import ru.joutak.splatoon.config.SplatoonSettings
-import ru.joutak.splatoon.util.SplatoonAttributes
 import java.time.Duration
 import java.util.UUID
 import kotlin.math.abs
@@ -132,7 +131,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         commands.keys.forEach { playerId ->
             val player = Bukkit.getPlayer(playerId) ?: return@forEach
             player.scoreboard = emptyScoreboard
-            SplatoonAttributes.removeBowNoSlow(player)
             player.inventory.clear()
             restoreVanillaHealth(player)
             player.foodLevel = 20

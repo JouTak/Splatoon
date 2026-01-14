@@ -26,7 +26,6 @@ import org.bukkit.util.Vector
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
-import ru.joutak.splatoon.util.SplatoonAttributes
 import java.lang.reflect.Method
 import java.util.UUID
 import kotlin.random.Random
@@ -40,6 +39,11 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
     private val firingTasks = mutableMapOf<UUID, BukkitTask>()
     private val nextShotAtMs = mutableMapOf<UUID, Long>()
+    private val lastInputAtMs = mutableMapOf<UUID, Long>()
+
+    // Если клиент держит ПКМ, но сервер тикает stopUsingItem(), могут быть 1-2 тика без isHandRaised.
+    // Оставляем небольшой grace, чтобы удержание не обрывалось.
+    private val holdGraceMs = 250L
 
     // Paper API: Player.startUsingItem / Player.stopUsingItem. Достаём reflection'ом, чтобы не привязываться к конкретной сборке.
     private var startUsingMethod: Method? = null
@@ -69,15 +73,16 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
         if (game == null && !isAdminUse) return
 
+        // Если игрок начал пользоваться пушкой — снимаем спавнпротекшн (как deathmatch).
+        if (game != null) {
+            game.cancelSpawnProtectionByAction(player)
+        }
+
         // Без стрел клиент может вообще не начать натяжение по воздуху.
         // Поэтому держим 1 "патрон" (ARROW с ресурс-пак моделью под снежок) в инвентаре.
         // Он не тратится, потому что ванильный выстрел стрелой отменён.
         val (baseTeam, paintTeam) = resolveTeams(player, game, pdc) ?: return
         ensureAmmoFallback(player, teamToColorName(paintTeam))
-
-        // Убираем замедление от натяжения тетивы (без potion-эффектов скорости).
-        // Компенсируем и потерю sprint (если игрок уже бежал), чтобы не было рывка при отпускании.
-        SplatoonAttributes.applyBowNoSlow(player, player.isSprinting)
 
         // Если на сборке доступен startUsingItem — форсим "using item" сервером (чтобы не зависеть от нюансов клиента).
         // Для клика по блоку отменяем ванильное взаимодействие, чтобы не открывать/не нажимать блоки.
@@ -87,6 +92,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
 
         // Чтобы поведение было как раньше (сразу выстрел на ПКМ), делаем первый выстрел мгновенно.
+        lastInputAtMs[player.uniqueId] = System.currentTimeMillis()
         nextShotAtMs[player.uniqueId] = System.currentTimeMillis() + fireIntervalMs
         fireOnce(player, game, isAdminUse, baseTeam, paintTeam)
 
@@ -104,8 +110,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val pdc = meta.persistentDataContainer
         if (!pdc.has(gunKey, PersistentDataType.BOOLEAN)) return
 
-        // Срабатывает именно на отпускании натяжения — снимаем no-slow мгновенно,
-        // чтобы не оставалось 1 тика "ускорения" после release.
         stopFiring(shooter.uniqueId)
 
         event.isCancelled = true
@@ -127,9 +131,23 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
                 return@Runnable
             }
 
+            // No-slow без speed-эффектов/атрибутов:
+            // клиент замедляется только пока находится в состоянии using-item. Мы сбрасываем его каждый тик.
+            val now = System.currentTimeMillis()
+            val raised = player.isHandRaised
+            if (raised) {
+                lastInputAtMs[uuid] = now
+                tryStopUsingItem(player)
+            } else {
+                val last = lastInputAtMs[uuid] ?: 0L
+                if (now - last > holdGraceMs) {
+                    stopFiring(uuid)
+                    return@Runnable
+                }
+            }
+
             if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return@Runnable
 
-            val now = System.currentTimeMillis()
             val next = nextShotAtMs[uuid] ?: 0L
             if (now < next) return@Runnable
             nextShotAtMs[uuid] = now + fireIntervalMs
@@ -144,7 +162,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     }
 
     private fun fireOnce(player: Player, game: Game?, isAdminUse: Boolean, baseTeam: Int, paintTeam: Int) {
-
         val colorName = teamToColorName(paintTeam)
         // "Патрон" всегда лежит в инвентаре, а имя обновляем под текущий цвет (Bacillus).
         ensureAmmoFallback(player, colorName)
@@ -153,7 +170,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val dir = player.eyeLocation.direction.normalize()
         val muzzle = muzzleLocation(player.eyeLocation, dir)
 
-        // Shot sound for nearby players.
         player.world.playSound(
             muzzle,
             Sound.ENTITY_SNOWBALL_THROW,
@@ -172,7 +188,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
             setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
         }
-
     }
 
     private fun resolveTeams(
@@ -197,14 +212,13 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
     private fun shouldContinue(player: Player): Boolean {
         if (!player.isOnline) return false
+
         val item = player.inventory.itemInMainHand
         if (item.type != Material.BOW) return false
+
         val meta = item.itemMeta ?: return false
         val pdc = meta.persistentDataContainer
         if (!pdc.has(gunKey, PersistentDataType.BOOLEAN)) return false
-
-        // Стреляем только пока игрок "тянет" лук.
-        if (!player.isHandRaised) return false
 
         val game = GameManager.playerGame[player.uniqueId]
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
@@ -214,10 +228,10 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     private fun stopFiring(uuid: UUID) {
         firingTasks.remove(uuid)?.cancel()
         nextShotAtMs.remove(uuid)
+        lastInputAtMs.remove(uuid)
 
         val p = plugin.server.getPlayer(uuid)
         if (p != null) {
-            SplatoonAttributes.removeBowNoSlow(p)
             tryStopUsingItem(p)
         }
     }
@@ -267,8 +281,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             created
         }
 
-        // Чтобы "стрела" не мозолила глаза — по желанию можно заменить её модель в ресурспаке через items/arrow.json
-        // по custom_name = Red/Blue/Green/Yellow (аналогично snowball.json). Мы просто ставим имя.
         if (colorName != null) {
             item.setData(DataComponentTypes.CUSTOM_NAME, Component.text(colorName))
             inv.setItem(ammoSlot, item)
@@ -281,11 +293,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             if (it == null || it.type == Material.AIR) return i
         }
         return null
-    }
-
-    private fun hasStartUsingItem(): Boolean {
-        resolveUsingMethodsIfNeeded(plugin.server.onlinePlayers.firstOrNull())
-        return startUsingMethod != null
     }
 
     private fun tryStartUsingItem(player: Player): Boolean {
