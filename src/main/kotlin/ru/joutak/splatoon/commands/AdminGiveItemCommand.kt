@@ -33,7 +33,7 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         }
 
         val item = when (type) {
-            Type.GUN -> createItem(Material.BOW, "Сплат-пушка", "splatGun")
+            Type.GUN -> createItem(Material.CROSSBOW, "Сплат-пушка", "splatGun")
             Type.BOMB -> createItem(Material.GOLDEN_AXE, "Сплат-бомба", "Bomb")
             Type.BACILLUS -> createItem(Material.AMETHYST_SHARD, "Бацилла", "Bacillus")
         }

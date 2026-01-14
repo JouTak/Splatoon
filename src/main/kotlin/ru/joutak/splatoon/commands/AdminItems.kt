@@ -12,7 +12,7 @@ import ru.joutak.splatoon.config.SplatoonSettings
 object AdminItems {
 
     fun gun(team: Int = 0): ItemStack {
-        val item = ItemStack(Material.BOW, 1)
+        val item = ItemStack(Material.CROSSBOW, 1)
         val meta = item.itemMeta
         val plugin = SplatoonPlugin.instance
 

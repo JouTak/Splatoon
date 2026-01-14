@@ -609,7 +609,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     }
 
     private fun giveSplatGuns() {
-        val item = ItemStack(Material.BOW, 1)
+        val item = ItemStack(Material.CROSSBOW, 1)
         val meta = item.itemMeta
         meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
         meta.persistentDataContainer.set(
@@ -622,10 +622,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
-
-            // Для BOW клиенту нужен "патрон" (arrow), иначе ПКМ по воздуху может вообще не стартовать.
-            // Визуально его можно заменить на снежок через items/arrow.json по minecraft:custom_name.
-            ensureBowAmmo(p)
         }
     }
 
