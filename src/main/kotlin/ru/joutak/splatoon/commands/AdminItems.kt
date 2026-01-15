@@ -5,9 +5,9 @@ import net.kyori.adventure.text.format.TextColor
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import ru.joutak.splatoon.items.CrossbowVisual
 
 object AdminItems {
 
@@ -20,10 +20,14 @@ object AdminItems {
         meta.persistentDataContainer.set(NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN, true)
         markAdmin(meta.persistentDataContainer, team)
 
-        item.itemMeta = meta
+        // Держим арбалет визуально "заряженным" всегда, чтобы моделька не дёргалась.
+        (meta as? CrossbowMeta)?.let { crossbow ->
+            if (crossbow.chargedProjectiles.isEmpty()) {
+                runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
+            }
+        }
 
-        // Keep crossbow visually charged to avoid jitter.
-        CrossbowVisual.ensureCharged(item)
+        item.itemMeta = meta
         return item
     }
 

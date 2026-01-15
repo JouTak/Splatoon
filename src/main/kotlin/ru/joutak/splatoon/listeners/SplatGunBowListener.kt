@@ -5,7 +5,6 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
-import org.bukkit.Sound
 import org.bukkit.entity.Player
 import org.bukkit.entity.Snowball
 import org.bukkit.event.Event
@@ -23,19 +22,17 @@ import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
-import org.bukkit.scheduler.BukkitTask
 import org.bukkit.util.Vector
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
-import kotlin.random.Random
 
 /**
  * Пушка на арбалете:
- * - НЕТ "тумблера": 1 клик без удержания = 1 выстрел и быстрое завершение тикера
- * - авто-огонь только при удержании ПКМ
- * - визуально арбалет "заряжен" пока активен режим стрельбы (клик/удержание)
+ * - арбалет всегда визуально "заряжен" (чтобы моделька не дёргалась)
+ * - стрельба только по ПКМ (без ванильного натяжения/перезарядки)
+ * - ванильные звуки арбалета полностью не используются
  */
 class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
@@ -44,16 +41,10 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     private val adminKey = NamespacedKey(plugin, "splatoonAdmin")
     private val adminTeamKey = NamespacedKey(plugin, "adminTeam")
 
-    private val firingTasks = mutableMapOf<UUID, BukkitTask>()
     private val nextShotAtMs = mutableMapOf<UUID, Long>()
-    private val lastClickAtMs = mutableMapOf<UUID, Long>()
 
-    // Через сколько после клика без удержания мы гасим режим стрельбы (чтобы не мигало/не дёргалось)
-    private val clickGraceMs = 220L
-
-    // Скорострельность
-    private val clickCooldownMs = 170L   // выстрелы по кликам
-    private val holdIntervalMs = 300L    // авто-огонь при удержании (медленнее)
+    // Скорострельность (по кликам)
+    private val clickCooldownMs = 170L
 
     @EventHandler(ignoreCancelled = false, priority = EventPriority.HIGHEST)
     fun onInteract(event: PlayerInteractEvent) {
@@ -76,28 +67,24 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
         if (game == null && !isAdminUse) return
 
-        // Запретить взаимодействие с блоком, но позволить использовать предмет (важно для удержания ПКМ).
-        if (action == Action.RIGHT_CLICK_BLOCK) {
-            event.setUseInteractedBlock(Event.Result.DENY)
-            event.setUseItemInHand(Event.Result.ALLOW)
-        }
+        // Полностью запрещаем ванильное использование арбалета (без натяжения/звуков/перезарядки)
+        event.setUseInteractedBlock(Event.Result.DENY)
+        event.setUseItemInHand(Event.Result.DENY)
+        event.isCancelled = true
 
         // При первом боевом действии — снимаем спавнпротекшн (deathmatch).
         if (game != null) {
             game.cancelSpawnProtectionByAction(player)
         }
 
+        // Держим арбалет всегда "заряженным" визуально (чтобы не скакал по экрану)
+        setChargedVisual(player, true)
+
         val (baseTeam, paintTeam) = resolveTeams(player, game, pdc) ?: return
         ensureAmmoFallback(player, teamToColorName(paintTeam))
 
         val now = System.currentTimeMillis()
-        lastClickAtMs[player.uniqueId] = now
-
-        // 1 клик = 1 выстрел (с кулдауном)
-        tryShoot(player, game, isAdminUse, baseTeam, paintTeam, now, clickCooldownMs)
-
-        // Запускаем тикер: при удержании ПКМ будет авто-огонь, без удержания он быстро сам остановится.
-        startFiringIfNeeded(player, game, isAdminUse)
+        tryShoot(player, game, isAdminUse, baseTeam, paintTeam, now)
     }
 
     // Ванильный выстрел арбалетом полностью отменяем (мы спавним свои snowball).
@@ -112,71 +99,11 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
         event.isCancelled = true
         event.setConsumeItem(false)
-
-        // stopFiring здесь НЕ делаем: иначе при удержании возможны микроподёргивания.
-        // Остановка у нас строго по отпусканию удержания/отсутствию кликов (см. тикер).
     }
 
     @EventHandler
     fun onQuit(event: PlayerQuitEvent) {
-        stopFiring(event.player.uniqueId)
-    }
-
-    private fun startFiringIfNeeded(player: Player, game: Game?, isAdminUse: Boolean) {
-        val uuid = player.uniqueId
-        if (firingTasks.containsKey(uuid)) return
-
-        // Визуально "натянутый/заряженный" пока режим активен
-        setChargedVisual(player, true)
-
-        val task = plugin.server.scheduler.runTaskTimer(plugin, Runnable {
-            if (!shouldContinue(player)) {
-                stopFiring(uuid)
-                return@Runnable
-            }
-            if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return@Runnable
-
-            val now = System.currentTimeMillis()
-
-            // Авто-огонь только при удержании
-            val holding = player.isHandRaised
-
-            if (!holding) {
-                // Без удержания — быстро гасим (чтобы одиночный клик не превращался в "автомат")
-                val lastClick = lastClickAtMs[uuid] ?: 0L
-                if (now - lastClick > clickGraceMs) {
-                    stopFiring(uuid)
-                }
-                return@Runnable
-            }
-
-            val item = player.inventory.itemInMainHand
-            val meta = item.itemMeta ?: return@Runnable
-            val teams = resolveTeams(player, game, meta.persistentDataContainer) ?: return@Runnable
-
-            tryShoot(
-                player = player,
-                game = game,
-                isAdminUse = isAdminUse,
-                baseTeam = teams.first,
-                paintTeam = teams.second,
-                now = now,
-                cooldownMs = holdIntervalMs
-            )
-        }, 0L, 1L)
-
-        firingTasks[uuid] = task
-    }
-
-    private fun stopFiring(uuid: UUID) {
-        firingTasks.remove(uuid)?.cancel()
-        nextShotAtMs.remove(uuid)
-        lastClickAtMs.remove(uuid)
-
-        val p = plugin.server.getPlayer(uuid)
-        if (p != null) {
-            setChargedVisual(p, false)
-        }
+        nextShotAtMs.remove(event.player.uniqueId)
     }
 
     private fun tryShoot(
@@ -185,12 +112,11 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         isAdminUse: Boolean,
         baseTeam: Int,
         paintTeam: Int,
-        now: Long,
-        cooldownMs: Long
+        now: Long
     ) {
         val next = nextShotAtMs[player.uniqueId] ?: 0L
         if (now < next) return
-        nextShotAtMs[player.uniqueId] = now + cooldownMs
+        nextShotAtMs[player.uniqueId] = now + clickCooldownMs
 
         fireOnce(player, game, isAdminUse, baseTeam, paintTeam)
     }
@@ -203,12 +129,9 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val dir = player.eyeLocation.direction.normalize()
         val muzzle = muzzleLocation(player.eyeLocation, dir)
 
-        player.world.playSound(
-            muzzle,
-            Sound.ENTITY_SNOWBALL_THROW,
-            0.35f,
-            (1.1f + Random.nextFloat() * 0.15f)
-        )
+        // Мягкий "красящий" звук вместо любых звуков арбалета.
+        // Важно: используем точный key как в /playsound, чтобы не зависеть от enum.
+        player.world.playSound(muzzle, "minecraft:item.dye.use", 1.0f, 1.0f)
 
         player.world.spawn(muzzle, Snowball::class.java).apply {
             item = projectileItem
@@ -241,21 +164,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
 
         return baseTeam to paintTeam
-    }
-
-    private fun shouldContinue(player: Player): Boolean {
-        if (!player.isOnline) return false
-
-        val item = player.inventory.itemInMainHand
-        if (item.type != Material.CROSSBOW) return false
-
-        val meta = item.itemMeta ?: return false
-        val pdc = meta.persistentDataContainer
-        if (!pdc.has(gunKey, PersistentDataType.BOOLEAN)) return false
-
-        val game = GameManager.playerGame[player.uniqueId]
-        val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
-        return game != null || isAdminUse
     }
 
     private fun createProjectileItem(name: String): ItemStack {

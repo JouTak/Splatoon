@@ -17,6 +17,7 @@ import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
+import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
@@ -32,7 +33,6 @@ import ru.joutak.minigames.results.model.TeamResult
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SpawnPoint
 import ru.joutak.splatoon.config.SplatoonSettings
-import ru.joutak.splatoon.items.CrossbowVisual
 import java.time.Duration
 import java.util.UUID
 import kotlin.math.abs
@@ -618,17 +618,18 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             PersistentDataType.BOOLEAN,
             true
         )
-        item.itemMeta = meta
 
-        // Keep crossbow visually charged to avoid client-side jitter.
-        CrossbowVisual.ensureCharged(item)
+        // Держим арбалет визуально "заряженным" всегда, чтобы моделька не дёргалась.
+        (meta as? CrossbowMeta)?.let { crossbow ->
+            if (crossbow.chargedProjectiles.isEmpty()) {
+                runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
+            }
+        }
+        item.itemMeta = meta
 
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
-
-            // Keep our ammo marker (arrow) for resource-pack coloring and compatibility.
-            ensureBowAmmo(p)
         }
     }
 
