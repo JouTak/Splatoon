@@ -11,7 +11,7 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
-import io.papermc.paper.datacomponent.DataComponentTypes
+import ru.joutak.splatoon.items.CrossbowVisual
 
 class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) : CommandExecutor {
 
@@ -33,7 +33,7 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         }
 
         val item = when (type) {
-            Type.GUN -> createItem(Material.CROSSBOW, "Сплат-пушка", "splatGun")
+            Type.GUN -> createItem(Material.CROSSBOW, "Сплат-пушка", "splatGun").also { CrossbowVisual.ensureCharged(it) }
             Type.BOMB -> createItem(Material.GOLDEN_AXE, "Сплат-бомба", "Bomb")
             Type.BACILLUS -> createItem(Material.AMETHYST_SHARD, "Бацилла", "Bacillus")
         }
@@ -43,14 +43,6 @@ class AdminGiveItemCommand(private val plugin: Plugin, private val type: Type) :
         return true
     }
 
-
-    private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
-        for (i in 9..35) {
-            val it = inv.getItem(i)
-            if (it == null || it.type == Material.AIR) return i
-        }
-        return null
-    }
 
     private fun createItem(material: Material, name: String, key: String): ItemStack {
         val item = ItemStack(material, 1)

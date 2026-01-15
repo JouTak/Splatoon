@@ -32,6 +32,7 @@ import ru.joutak.minigames.results.model.TeamResult
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SpawnPoint
 import ru.joutak.splatoon.config.SplatoonSettings
+import ru.joutak.splatoon.items.CrossbowVisual
 import java.time.Duration
 import java.util.UUID
 import kotlin.math.abs
@@ -619,9 +620,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         )
         item.itemMeta = meta
 
+        // Keep crossbow visually charged to avoid client-side jitter.
+        CrossbowVisual.ensureCharged(item)
+
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
+
+            // Keep our ammo marker (arrow) for resource-pack coloring and compatibility.
+            ensureBowAmmo(p)
         }
     }
 

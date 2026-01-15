@@ -7,7 +7,7 @@ import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import ru.joutak.splatoon.config.SplatoonSettings
+import ru.joutak.splatoon.items.CrossbowVisual
 
 object AdminItems {
 
@@ -21,6 +21,9 @@ object AdminItems {
         markAdmin(meta.persistentDataContainer, team)
 
         item.itemMeta = meta
+
+        // Keep crossbow visually charged to avoid jitter.
+        CrossbowVisual.ensureCharged(item)
         return item
     }
 
