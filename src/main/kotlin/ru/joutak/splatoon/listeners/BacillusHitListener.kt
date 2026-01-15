@@ -3,6 +3,7 @@ package ru.joutak.splatoon.listeners
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.title.Title
+import org.bukkit.FluidCollisionMode
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
@@ -66,12 +67,19 @@ class BacillusHitListener(private val plugin: Plugin) : Listener {
     private fun raytracePlayer(player: Player, maxDistance: Double): Player? {
         val start = player.eyeLocation
         val dir = start.direction
-        val res = player.world.rayTraceEntities(start, dir, maxDistance, 0.3) { e ->
-            e is Player && e.uniqueId != player.uniqueId
-        } ?: return null
 
-        val hit = res.hitEntity ?: return null
-        return hit as? Player
+        // Важно: rayTraceEntities игнорирует блоки, поэтому бацилла могла "доставать" сквозь стены.
+        // rayTrace учитывает и блоки, и сущности, возвращая ближайшее пересечение.
+        val res = player.world.rayTrace(
+            start,
+            dir,
+            maxDistance,
+            FluidCollisionMode.NEVER,
+            true, // игнорируем "passable" (трава и т.п.), но упираемся в плотные стены
+            0.3
+        ) { e -> e is Player && e.uniqueId != player.uniqueId } ?: return null
+
+        return res.hitEntity as? Player
     }
 
     private fun findBacillus(player: Player): BacillusHand? {
