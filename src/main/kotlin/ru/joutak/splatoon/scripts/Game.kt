@@ -1080,7 +1080,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             sb.entries.forEach { entry -> sb.resetScores(entry) }
 
             var score = 15
-            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬").score = score
+            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬").score = score
             score--
 
             obj.getScore("§f§lСЧЕТ:").score = score
@@ -1128,7 +1128,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 }
             }
 
-            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6").score = 0
+            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6").score = 0
         }
     }
 
