@@ -292,7 +292,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
         // Смещаем старт ближе к пушке: вперёд + вправо + чуть вниз (к руке)
         return eye.clone()
-            .add(dir.clone().multiply(0.50))
+            .add(dir.clone().multiply(1.50))
             .add(right.multiply(0.32))
             .add(0.0, -0.40, 0.0)
     }
