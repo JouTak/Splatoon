@@ -88,7 +88,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     }
 
     // Ванильный выстрел арбалетом полностью отменяем (мы спавним свои snowball).
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(ignoreCancelled = false, priority = EventPriority.HIGHEST)
     fun onShoot(event: EntityShootBowEvent) {
         val item = event.bow ?: return
         if (item.type != Material.CROSSBOW) return
@@ -133,16 +133,16 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         // Важно: используем точный key как в /playsound, чтобы не зависеть от enum.
         player.world.playSound(muzzle, "minecraft:item.dye.use", 1.0f, 1.0f)
 
-        player.world.spawn(muzzle, Snowball::class.java).apply {
-            item = projectileItem
-            setGravity(!SplatoonSettings.gunDisableGravity)
-            velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
-            shooter = player
+        player.world.spawn(muzzle, Snowball::class.java) { snowball ->
+            snowball.item = projectileItem
+            snowball.setGravity(!SplatoonSettings.gunDisableGravity)
+            snowball.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
+            snowball.shooter = player
 
-            setMetadata("paintKey", FixedMetadataValue(plugin, 1))
-            setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
-            setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
-            setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
+            snowball.setMetadata("paintKey", FixedMetadataValue(plugin, 1))
+            snowball.setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+            snowball.setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
+            snowball.setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
         }
     }
 
@@ -284,10 +284,17 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
     private fun muzzleLocation(eye: Location, dir: Vector): Location {
         val up = Vector(0.0, 1.0, 0.0)
-        val right = up.clone().crossProduct(dir).normalize()
+        var right = dir.clone().crossProduct(up)
+        if (right.lengthSquared() < 1e-6) {
+            right = Vector(1.0, 0.0, 0.0)
+        }
+        right.normalize()
+
+        // Смещаем старт ближе к пушке: вперёд + вправо + чуть вниз (к руке)
         return eye.clone()
-            .add(dir.clone().multiply(0.35))
-            .add(right.multiply(0.18))
-            .add(0.0, -0.35, 0.0)
+            .add(dir.clone().multiply(0.50))
+            .add(right.multiply(0.32))
+            .add(0.0, -0.40, 0.0)
     }
+
 }
