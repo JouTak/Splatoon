@@ -71,6 +71,14 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private var scoreboardUpdateTask: BukkitTask? = null
     private var actionBarTask: BukkitTask? = null
 
+    private var endingCleanupTask: BukkitTask? = null
+
+    
+    private var countdownLeft: Int? = null
+
+    
+    private var cleanupStarted: Boolean = false
+
     private var timeLeft = 0
     private val totalTime = SplatoonSettings.gameDurationSeconds
     private val bossBarsByTeam: MutableMap<Int, BossBar> = mutableMapOf()
@@ -106,6 +114,115 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     fun getSpectatorCount(): Int = spectators.size
     fun getTimeLeftSeconds(): Int = timeLeft
 
+
+    fun getPhaseName(): String = when {
+        cleanupStarted -> "CLEANUP"
+        ended -> "ENDING"
+        gameTimerTask != null -> "RUNNING"
+        countdownTask != null -> "COUNTDOWN"
+        else -> "WAITING"
+    }
+
+    fun adminSkipPhase(): String {
+        return when (getPhaseName()) {
+            "COUNTDOWN" -> {
+                forceCountdownStartNow()
+                "§aCOUNTDOWN → RUNNING"
+            }
+            "RUNNING" -> {
+                endGame(worldName)
+                "§aRUNNING → ENDING"
+            }
+            "ENDING" -> {
+                forceCleanupNow()
+                "§aENDING → CLEANUP"
+            }
+            else -> "§eНечего скипать (phase=${getPhaseName()})."
+        }
+    }
+
+    fun adminSkipSeconds(seconds: Int): String {
+        if (seconds <= 0) return "§cСекунды должны быть > 0"
+        return when (getPhaseName()) {
+            "COUNTDOWN" -> {
+                val cur = countdownLeft ?: return "§eCountdown уже завершён."
+                countdownLeft = (cur - seconds).coerceAtLeast(0)
+                if (countdownLeft == 0) {
+                    forceCountdownStartNow()
+                    "§aCountdown пропущен."
+                } else {
+                    "§aCountdown: -$seconds сек (осталось $countdownLeft)."
+                }
+            }
+            "RUNNING" -> {
+                timeLeft -= seconds
+                if (timeLeft <= 0) {
+                    timeLeft = 0
+                    endGame(worldName)
+                    "§aВремя матча пропущено до конца."
+                } else {
+                    updateBossBar()
+                    updateAllPlayerScoreboards()
+                    "§aВремя матча: -$seconds сек (осталось $timeLeft)."
+                }
+            }
+            "ENDING" -> {
+                forceCleanupNow()
+                "§aENDING: пропущено."
+            }
+            else -> "§eСейчас нельзя скипать секунды (phase=${getPhaseName()})."
+        }
+    }
+
+    fun adminSetTimeLeft(seconds: Int): String {
+        if (seconds < 0) return "§cСекунды должны быть >= 0"
+        if (getPhaseName() != "RUNNING") return "§eКоманда доступна только в RUNNING (phase=${getPhaseName()})."
+        timeLeft = seconds
+        if (timeLeft <= 0) {
+            timeLeft = 0
+            endGame(worldName)
+            return "§aВремя выставлено в 0 → ENDING."
+        }
+        updateBossBar()
+        updateAllPlayerScoreboards()
+        return "§aВремя выставлено: $timeLeft сек."
+    }
+
+    fun adminAddTime(deltaSeconds: Int): String {
+        if (deltaSeconds == 0) return "§eDelta = 0"
+        if (getPhaseName() != "RUNNING") return "§eКоманда доступна только в RUNNING (phase=${getPhaseName()})."
+        timeLeft = (timeLeft + deltaSeconds).coerceAtLeast(0)
+        if (timeLeft <= 0) {
+            timeLeft = 0
+            endGame(worldName)
+            return "§aВремя стало 0 → ENDING."
+        }
+        updateBossBar()
+        updateAllPlayerScoreboards()
+        val sign = if (deltaSeconds > 0) "+" else ""
+        return "§aВремя: ${sign}${deltaSeconds} сек (осталось $timeLeft)."
+    }
+
+    private fun forceCountdownStartNow() {
+        val w = Bukkit.getWorld(worldName) ?: return
+        if (ended) return
+        if (gameTimerTask != null) return
+        if (countdownTask == null) return
+        countdownLeft = 0
+        // Start immediately on main thread
+        Bukkit.getScheduler().runTask(SplatoonPlugin.instance, Runnable {
+            if (ended) return@Runnable
+            if (gameTimerTask != null) return@Runnable
+            if (countdownTask == null) return@Runnable
+            doCountdownStartNow(w)
+        })
+    }
+
+    private fun forceCleanupNow() {
+        if (!ended) return
+        finishCleanupNow(force = true)
+    }
+
     var totalPaintableBlocks: Int = 0
 
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
@@ -132,6 +249,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         gameTimerTask?.cancel()
         countdownTask?.cancel()
+        endingCleanupTask?.cancel()
+        endingCleanupTask = null
         scoreboardUpdateTask?.cancel()
         boostTimerTask?.cancel()
         actionBarTask?.cancel()
@@ -265,33 +384,47 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             )
         )
 
+        // Store ending cleanup task so admins can force cleanup immediately.
+        endingCleanupTask?.cancel()
+        cleanupStarted = false
+
+        endingCleanupTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            finishCleanupNow(force = false)
+        }, SplatoonSettings.returnToLobbyDelaySeconds * 20L)
+    }
+
+    private fun finishCleanupNow(force: Boolean) {
+        if (cleanupStarted && !force) return
+        cleanupStarted = true
+
+        endingCleanupTask?.cancel()
+        endingCleanupTask = null
+
         val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
 
-        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
-            if (lobbyWorld == null) {
-                SplatoonPlugin.instance.logger.severe(
-                    "Не удалось найти мир лобби: ${SplatoonSettings.lobbyWorldName}. Удаление игры остановлено."
-                )
-                GameManager.deleteGame(this.worldName, this)
-                return@Runnable
-            }
-
-            commands.keys.forEach { playerId ->
-                val player = Bukkit.getPlayer(playerId) ?: return@forEach
-                player.scoreboard = emptyScoreboard
-                player.inventory.clear()
-                restoreVanillaHealth(player)
-                player.foodLevel = 20
-                player.saturation = 20f
-                player.activePotionEffects.forEach { effect ->
-                    player.removePotionEffect(effect.type)
-                }
-                player.teleport(lobbyWorld.spawnLocation)
-            }
-
+        val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+        if (lobbyWorld == null) {
+            SplatoonPlugin.instance.logger.severe(
+                "Не удалось найти мир лобби: ${SplatoonSettings.lobbyWorldName}. Удаление игры остановлено."
+            )
             GameManager.deleteGame(this.worldName, this)
-        }, SplatoonSettings.returnToLobbyDelaySeconds * 20L)
+            return
+        }
+
+        commands.keys.forEach { playerId ->
+            val player = Bukkit.getPlayer(playerId) ?: return@forEach
+            player.scoreboard = emptyScoreboard
+            player.inventory.clear()
+            restoreVanillaHealth(player)
+            player.foodLevel = 20
+            player.saturation = 20f
+            player.activePotionEffects.forEach { effect ->
+                player.removePotionEffect(effect.type)
+            }
+            player.teleport(lobbyWorld.spawnLocation)
+        }
+
+        GameManager.deleteGame(this.worldName, this)
     }
 
     private fun sendMatchResultsIfNeeded(winnerTeam: Int) {
@@ -397,9 +530,12 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     }
 
     private fun startCountdown(worldName: String) {
-        var countdown = 6
+        countdownLeft = 6
 
+        countdownTask?.cancel()
         countdownTask = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
+            val countdown = countdownLeft ?: return@Runnable
+
             when (countdown) {
                 6 -> {
                     val w = Bukkit.getWorld(this.worldName)
@@ -471,26 +607,44 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 }
 
                 0 -> {
-                    showTitleToWorldPlayers(
-                        Component.text("СТАРТ!", NamedTextColor.GREEN),
-                        Component.text("Закрашивайте территорию!", NamedTextColor.GRAY)
-                    )
-                    playSoundToAllPlayers(
-                        Sound.sound(Key.key("entity.player.levelup"), Sound.Source.MASTER, 1.0f, 1.0f)
-                    )
-
-                    giveSplatGuns()
-                    sendStartInstructions()
-
-                    startMainTimer(worldName)
-                    startBoostTimer()
-                    startActionBarLoop()
-
-                    countdownTask?.cancel()
+                    val w = Bukkit.getWorld(this.worldName)
+                    if (w != null) {
+                        doCountdownStartNow(w)
+                    } else {
+                        countdownTask?.cancel()
+                        countdownTask = null
+                        countdownLeft = null
+                    }
+                    return@Runnable
                 }
             }
-            countdown--
+
+            countdownLeft = countdown - 1
         }, 0L, 20L)
+    }
+
+    private fun doCountdownStartNow(world: World) {
+        if (ended) return
+        if (gameTimerTask != null) return
+
+        showTitleToWorldPlayers(
+            Component.text("СТАРТ!", NamedTextColor.GREEN),
+            Component.text("Закрашивайте территорию!", NamedTextColor.GRAY)
+        )
+        playSoundToAllPlayers(
+            Sound.sound(Key.key("entity.player.levelup"), Sound.Source.MASTER, 1.0f, 1.0f)
+        )
+
+        giveSplatGuns()
+        sendStartInstructions()
+
+        startMainTimer(world.name)
+        startBoostTimer()
+        startActionBarLoop()
+
+        countdownTask?.cancel()
+        countdownTask = null
+        countdownLeft = null
     }
 
     private fun sendStartInstructions() {

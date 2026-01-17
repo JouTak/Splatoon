@@ -46,6 +46,10 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
         sender.sendMessage("§e/$label games §7- список активных игр")
         sender.sendMessage("§e/$label spectate <id|world|arena|here> §7- наблюдать")
         sender.sendMessage("§e/$label unspectate §7- выйти из наблюдения")
+        sender.sendMessage("§e/$label phase skip <id|world|arena|here> §7- скип фазы (COUNTDOWN→RUNNING→ENDING→CLEANUP)")
+        sender.sendMessage("§e/$label skip <seconds> <id|world|arena|here> §7- скип секунд (countdown/таймер)")
+        sender.sendMessage("§e/$label time set <seconds> <id|world|arena|here> §7- выставить время (RUNNING)")
+        sender.sendMessage("§e/$label time add <deltaSeconds> <id|world|arena|here> §7- добавить/убрать время (RUNNING)")
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -109,6 +113,90 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
                     )
                 }
                 sender.sendMessage("§7/$label spectate #<id> §8или §7/$label spectate here")
+                return true
+            }
+
+
+            "phase" -> {
+                if (!hasAdmin(sender)) {
+                    sender.sendMessage("§cНедостаточно прав")
+                    return true
+                }
+                val action = args.getOrNull(1)
+                if (action == null || !action.equals("skip", ignoreCase = true)) {
+                    sender.sendMessage("§cИспользование: /$label phase skip <id|world|arena|here>")
+                    return true
+                }
+                val token = args.getOrNull(2) ?: run {
+                    if (sender is Player) "here" else null
+                }
+                if (token == null) {
+                    sender.sendMessage("§cДля консоли укажи id/world/arena")
+                    return true
+                }
+                val game = resolveGame(sender, token)
+                if (game == null) {
+                    sender.sendMessage("§cИгра не найдена. Используй: /$label games")
+                    return true
+                }
+                sender.sendMessage(game.adminSkipPhase())
+                return true
+            }
+
+            "skip" -> {
+                if (!hasAdmin(sender)) {
+                    sender.sendMessage("§cНедостаточно прав")
+                    return true
+                }
+                val sec = args.getOrNull(1)?.toIntOrNull()
+                if (sec == null) {
+                    sender.sendMessage("§cИспользование: /$label skip <seconds> <id|world|arena|here>")
+                    return true
+                }
+                val token = args.getOrNull(2) ?: run {
+                    if (sender is Player) "here" else null
+                }
+                if (token == null) {
+                    sender.sendMessage("§cДля консоли укажи id/world/arena")
+                    return true
+                }
+                val game = resolveGame(sender, token)
+                if (game == null) {
+                    sender.sendMessage("§cИгра не найдена. Используй: /$label games")
+                    return true
+                }
+                sender.sendMessage(game.adminSkipSeconds(sec))
+                return true
+            }
+
+            "time" -> {
+                if (!hasAdmin(sender)) {
+                    sender.sendMessage("§cНедостаточно прав")
+                    return true
+                }
+                val mode = args.getOrNull(1)?.lowercase()
+                val sec = args.getOrNull(2)?.toIntOrNull()
+                if (mode == null || sec == null || (mode != "set" && mode != "add")) {
+                    sender.sendMessage("§cИспользование: /$label time <set|add> <seconds> <id|world|arena|here>")
+                    return true
+                }
+                val token = args.getOrNull(3) ?: run {
+                    if (sender is Player) "here" else null
+                }
+                if (token == null) {
+                    sender.sendMessage("§cДля консоли укажи id/world/arena")
+                    return true
+                }
+                val game = resolveGame(sender, token)
+                if (game == null) {
+                    sender.sendMessage("§cИгра не найдена. Используй: /$label games")
+                    return true
+                }
+                val msg = when (mode) {
+                    "set" -> game.adminSetTimeLeft(sec)
+                    else -> game.adminAddTime(sec)
+                }
+                sender.sendMessage(msg)
                 return true
             }
 
@@ -176,7 +264,7 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
         args: Array<out String>
     ): MutableList<String> {
         if (args.size == 1) {
-            val base = listOf("help", "get", "games", "spectate", "unspectate")
+            val base = listOf("help", "get", "games", "spectate", "unspectate", "phase", "skip", "time")
             return base.filter { it.startsWith(args[0], ignoreCase = true) }.toMutableList()
         }
 
@@ -184,6 +272,45 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
             return listOf("gun", "bomb", "bacillus")
                 .filter { it.startsWith(args[1], ignoreCase = true) }
                 .toMutableList()
+        }
+
+
+        if (args.size == 2 && args[0].equals("phase", ignoreCase = true)) {
+            return listOf("skip")
+                .filter { it.startsWith(args[1], ignoreCase = true) }
+                .toMutableList()
+        }
+
+        if (args.size == 2 && args[0].equals("time", ignoreCase = true)) {
+            return listOf("set", "add")
+                .filter { it.startsWith(args[1], ignoreCase = true) }
+                .toMutableList()
+        }
+
+        if (args.size >= 2 && (args[0].equals("phase", ignoreCase = true) || args[0].equals("skip", ignoreCase = true) || args[0].equals("time", ignoreCase = true))) {
+            fun gameTokens(): List<String> {
+                val games = GameManager.getActiveGames().sortedBy { it.worldName }
+                val tokens = mutableListOf<String>()
+                tokens.add("here")
+                games.forEachIndexed { idx, g ->
+                    tokens.add("#${idx + 1}")
+                    tokens.add(g.worldName)
+                    tokens.add(g.arenaId)
+                }
+                return tokens.distinct()
+            }
+
+            val tokenIndex = when {
+                args[0].equals("phase", ignoreCase = true) -> 2
+                args[0].equals("skip", ignoreCase = true) -> 2
+                args[0].equals("time", ignoreCase = true) -> 3
+                else -> 999
+            }
+
+            if (args.size == tokenIndex + 1) {
+                val want = args[tokenIndex]
+                return gameTokens().filter { it.startsWith(want, ignoreCase = true) }.toMutableList()
+            }
         }
 
         if (args.size == 2 && (args[0].equals("spectate", ignoreCase = true) || args[0].equals("spec", ignoreCase = true))) {
