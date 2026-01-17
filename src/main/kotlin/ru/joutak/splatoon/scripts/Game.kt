@@ -73,8 +73,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
     private var timeLeft = 0
     private val totalTime = SplatoonSettings.gameDurationSeconds
-
-    private var bossBar: BossBar? = null
+    private val bossBarsByTeam: MutableMap<Int, BossBar> = mutableMapOf()
+    private var spectatorBossBar: BossBar? = null
     private var activeTeams: List<Int> = listOf()
 
     private val playerScoreboards: MutableMap<UUID, org.bukkit.scoreboard.Scoreboard> = mutableMapOf()
@@ -1010,21 +1010,56 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val pitch = chosen.pitch ?: fallback.pitch
         return org.bukkit.Location(world, chosen.x, chosen.y, chosen.z, yaw, pitch)
     }
-
     private fun createBossBar() {
-        val title = formatBossBarTitle()
-        bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SOLID)
-        bossBar?.isVisible = true
-        (commands.keys + spectators).forEach { playerId ->
-            val player = Bukkit.getPlayer(playerId)
-            if (player != null) bossBar?.addPlayer(player)
+        removeBossBar()
+
+        val color = bossBarColor()
+        val placementByTeam = computePlacementByTeam()
+
+        activeTeams.forEach { team ->
+            val bar = Bukkit.createBossBar(formatBossBarTitle(team, placementByTeam), color, BarStyle.SOLID)
+            bar.isVisible = true
+
+            commands.entries
+                .asSequence()
+                .filter { it.value == team }
+                .map { it.key }
+                .forEach { uuid ->
+                    Bukkit.getPlayer(uuid)?.let { bar.addPlayer(it) }
+                }
+
+            bossBarsByTeam[team] = bar
         }
+
+        val specBar = Bukkit.createBossBar(formatBossBarTitle(null, placementByTeam), color, BarStyle.SOLID)
+        specBar.isVisible = true
+        spectators.forEach { uuid ->
+            Bukkit.getPlayer(uuid)?.let { specBar.addPlayer(it) }
+        }
+        spectatorBossBar = specBar
+
         updateBossBar()
     }
 
     fun addSpectator(player: Player) {
         val uuid = player.uniqueId
-        if (spectators.contains(uuid)) return
+        if (spectators.contains(uuid)) {
+            // Ensure spectator mode is applied (world gamemode may override on teleport).
+            player.gameMode = org.bukkit.GameMode.SPECTATOR
+            player.isCollidable = false
+            ensureBossBarsCreated()
+            removeFromAllBossBars(player)
+            spectatorBossBar?.addPlayer(player)
+            
+            Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+                if (spectators.contains(uuid)) {
+                    player.gameMode = org.bukkit.GameMode.SPECTATOR
+                    player.isCollidable = false
+                }
+            }, 1L)
+
+            return
+        }
 
         val world = Bukkit.getWorld(worldName)
         if (world == null) {
@@ -1064,10 +1099,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         player.foodLevel = 20
         player.saturation = 20f
         player.absorptionAmount = 0.0
-
-        player.gameMode = org.bukkit.GameMode.SPECTATOR
-        player.isCollidable = false
-
         val tp = world.spawnLocation.clone().add(0.5, 0.0, 0.5)
         if (tp.y < 75.0) tp.y = 75.0
         player.teleport(tp)
@@ -1075,7 +1106,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spectators.add(uuid)
         GameManager.setSpectating(uuid, worldName)
 
-        bossBar?.addPlayer(player)
+        ensureBossBarsCreated()
+        removeFromAllBossBars(player)
+        spectatorBossBar?.addPlayer(player)
+
+        // Multiverse can enforce world gamemode on teleport; apply spectator mode after teleport (and once more next tick).
+        player.gameMode = org.bukkit.GameMode.SPECTATOR
+        player.isCollidable = false
+        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            if (spectators.contains(uuid)) {
+                player.gameMode = org.bukkit.GameMode.SPECTATOR
+                player.isCollidable = false
+            }
+        }, 1L)
 
         // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
         val sb = Bukkit.getScoreboardManager().newScoreboard
@@ -1097,8 +1140,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     fun removeSpectator(player: Player, silent: Boolean = false, forceLobby: Boolean = false) {
         val uuid = player.uniqueId
         if (!spectators.remove(uuid)) return
-
-        bossBar?.removePlayer(player)
+        removeFromAllBossBars(player)
         GameManager.clearSpectating(uuid)
 
         playerObjectives.remove(uuid)
@@ -1165,33 +1207,98 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             }
         }
     }
-
     private fun removeBossBar() {
-        bossBar?.removeAll()
-        bossBar = null
+        bossBarsByTeam.values.forEach { it.removeAll() }
+        bossBarsByTeam.clear()
+        spectatorBossBar?.removeAll()
+        spectatorBossBar = null
+    }
+    private fun bossBarColor(): BarColor {
+        return when {
+            timeLeft <= 30 -> BarColor.RED
+            timeLeft <= 60 -> BarColor.YELLOW
+            else -> BarColor.GREEN
+        }
     }
 
-    private fun formatBossBarTitle(): String {
+    private fun computePlacementByTeam(): Map<Int, Int> {
+        if (activeTeams.isEmpty()) return emptyMap()
+
+        val scoreByTeam = mutableMapOf<Int, Double>()
+        activeTeams.forEach { t ->
+            val blocks = paintedCommand[t] ?: 0
+            val score = if (totalPaintableBlocks > 0) blocks * 100.0 / totalPaintableBlocks else blocks.toDouble()
+            scoreByTeam[t] = score
+        }
+
+        val sorted = activeTeams
+            .sortedWith(compareByDescending<Int> { scoreByTeam[it] ?: 0.0 }.thenBy { it })
+
+        val placementByTeam = mutableMapOf<Int, Int>()
+        var place = 1
+        sorted.forEach { t ->
+            placementByTeam[t] = place
+            place++
+        }
+        return placementByTeam
+    }
+
+    private fun teamColorCode(team: Int): String {
+        return when (team) {
+            0 -> "\u00A7c"
+            1 -> "\u00A7e"
+            2 -> "\u00A7a"
+            3 -> "\u00A79"
+            else -> "\u00A7f"
+        }
+    }
+
+    private fun formatBossBarTitle(team: Int?, placementByTeam: Map<Int, Int>): String {
         val minutes = timeLeft / 60
         val seconds = timeLeft % 60
         val timeString = "$minutes:${"%02d".format(seconds)}"
         val prefix = when {
-            timeLeft <= 30 -> "§c"
-            timeLeft <= 60 -> "§e"
-            else -> "§a"
+            timeLeft <= 30 -> "\u00A7c"
+            timeLeft <= 60 -> "\u00A7e"
+            else -> "\u00A7a"
         }
-        return "${prefix}До конца: §f$timeString"
+
+        if (team == null || activeTeams.isEmpty()) {
+            return "${prefix}До конца: \u00A7f$timeString"
+        }
+
+        val totalTeams = activeTeams.size
+        val place = placementByTeam[team]
+        val placeText = if (place != null) "${teamColorCode(team)}$place\u00A77/\u00A7f$totalTeams" else "\u00A77-"
+
+        return "${prefix}До конца: \u00A7f$timeString \u00A78| \u00A7fМесто: $placeText"
+    }
+
+    private fun ensureBossBarsCreated() {
+        if (bossBarsByTeam.isNotEmpty() || spectatorBossBar != null) return
+        createBossBar()
+    }
+
+    private fun removeFromAllBossBars(player: Player) {
+        bossBarsByTeam.values.forEach { it.removePlayer(player) }
+        spectatorBossBar?.removePlayer(player)
     }
 
     private fun updateBossBar() {
-        val bar = bossBar ?: return
         val progress = (timeLeft.toDouble() / totalTime.toDouble()).coerceIn(0.0, 1.0)
-        bar.progress = progress
-        bar.setTitle(formatBossBarTitle())
-        bar.color = when {
-            timeLeft <= 30 -> BarColor.RED
-            timeLeft <= 60 -> BarColor.YELLOW
-            else -> BarColor.GREEN
+        val color = bossBarColor()
+        val placementByTeam = computePlacementByTeam()
+
+        bossBarsByTeam.forEach { (team, bar) ->
+            bar.progress = progress
+            bar.color = color
+            bar.setTitle(formatBossBarTitle(team, placementByTeam))
+        }
+
+        spectatorBossBar?.let { bar ->
+            bar.progress = progress
+            bar.color = color
+            bar.setTitle(formatBossBarTitle(null, placementByTeam))
         }
     }
 
@@ -1254,6 +1361,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             val sb = playerScoreboards[uuid] ?: return@forEach
             val obj = playerObjectives[uuid] ?: return@forEach
 
+            val viewerTeam = commands[uuid]
+
             sb.entries.forEach { entry -> sb.resetScores(entry) }
 
             var score = 15
@@ -1265,15 +1374,14 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
             activeTeams.forEach { team ->
                 if (score <= 0) return@forEach
-                obj.getScore(formatTeamLine(team, totalForPercent)).score = score
+                obj.getScore(formatTeamLine(team, totalForPercent, viewerTeam)).score = score
                 score--
             }
 
             if (score <= 0) return@forEach
             obj.getScore(" ").score = score
             score--
-
-            val team = commands[uuid]
+            val team = viewerTeam
             if (score <= 0) return@forEach
             obj.getScore("§f§lВы: §f${teamLabel(team)}").score = score
             score--
@@ -1325,16 +1433,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val prefix = if (ammoTeam != null && baseTeam != null && ammoTeam != baseTeam) "§d" else "§f"
         return "${prefix}Патроны: §f${teamLabel(ammoTeam)}"
     }
-
-    private fun formatTeamLine(team: Int, totalPaintable: Int): String {
+    private fun formatTeamLine(team: Int, totalPaintable: Int, viewerTeam: Int?): String {
         val value = paintedCommand[team] ?: 0
         val percent = if (totalPaintable <= 0) 0 else ((value.toDouble() * 100.0) / totalPaintable.toDouble()).roundToInt()
+        val marker = if (viewerTeam != null && viewerTeam == team) "\u00A76\u25B6 " else ""
         return when (team) {
-            0 -> "§cКрасная: §f$value §7(${percent}%)"
-            1 -> "§eЖелтая: §f$value §7(${percent}%)"
-            2 -> "§aЗеленая: §f$value §7(${percent}%)"
-            3 -> "§9Синяя: §f$value §7(${percent}%)"
-            else -> "§fКоманда: §f$value §7(${percent}%)"
+            0 -> "${marker}\u00A7cКрасная: \u00A7f$value \u00A77(${percent}%)"
+            1 -> "${marker}\u00A7eЖелтая: \u00A7f$value \u00A77(${percent}%)"
+            2 -> "${marker}\u00A7aЗеленая: \u00A7f$value \u00A77(${percent}%)"
+            3 -> "${marker}\u00A79Синяя: \u00A7f$value \u00A77(${percent}%)"
+            else -> "${marker}\u00A7fКоманда: \u00A7f$value \u00A77(${percent}%)"
         }
     }
 
