@@ -10,6 +10,7 @@ commands:
   splatoon:
     description: "Splatoon admin utilities"
     usage: "/splatoon get <gun|bomb|bacillus>"
+    aliases: [sp]
 
 permissions:
   splatoon.admin:

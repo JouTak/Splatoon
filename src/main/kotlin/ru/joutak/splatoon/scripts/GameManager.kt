@@ -17,6 +17,8 @@ import java.util.UUID
 object GameManager {
     val playerGame = mutableMapOf<UUID, Game>()
     val arenas: MutableMap<String, World> = mutableMapOf()
+    private val gamesByWorld: MutableMap<String, Game> = mutableMapOf()
+    private val spectatingWorldByPlayer: MutableMap<UUID, String> = mutableMapOf()
 
     private val adminAmmoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
 
@@ -50,6 +52,25 @@ object GameManager {
         // Keep player stats for end-of-match results, but exclude the player from active match logic.
         game.markPlayerLeft(uuid)
         game.commands.remove(uuid)
+    }
+
+    fun getGame(player: Player): Game? = playerGame[player.uniqueId]
+
+    fun getActiveGames(): List<Game> = gamesByWorld.values.toList()
+
+    fun getGameByWorld(worldName: String): Game? = gamesByWorld[worldName]
+
+    fun getSpectatingGame(player: Player): Game? {
+        val world = spectatingWorldByPlayer[player.uniqueId] ?: return null
+        return gamesByWorld[world]
+    }
+
+    fun setSpectating(playerId: UUID, worldName: String) {
+        spectatingWorldByPlayer[playerId] = worldName
+    }
+
+    fun clearSpectating(playerId: UUID) {
+        spectatingWorldByPlayer.remove(playerId)
     }
 
     fun setAdminAmmoOverride(uuid: UUID, team: Int, durationMs: Long) {
@@ -158,6 +179,8 @@ object GameManager {
         arenas[worldName] = world
 
         val game = Game(worldName, baseArenaId, arenaSettings?.spawns ?: emptyMap())
+        gamesByWorld[worldName] = game
+        gamesByWorld[worldName] = game
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }
@@ -212,6 +235,9 @@ object GameManager {
     }
 
     fun deleteGame(worldName: String, game: Game) {
+        // Restore and remove spectators BEFORE world cleanup so their inventories/locations are not wiped.
+        runCatching { game.forceRemoveAllSpectators(forceLobby = true) }
+
         game.commands.keys.forEach { uuid ->
             val player = Bukkit.getPlayer(uuid)
             if (player != null) {
@@ -223,10 +249,12 @@ object GameManager {
 
         playerGame.entries.removeAll { it.value == game }
         arenas.remove(worldName)
+        gamesByWorld.remove(worldName)
+        spectatingWorldByPlayer.entries.removeAll { it.value == worldName }
     }
 
     fun shutdownAllGames() {
-        val games = playerGame.values.toSet()
+        val games = gamesByWorld.values.toSet()
         games.forEach { game ->
             game.shutdownGame()
             deleteGame(game.worldName, game)

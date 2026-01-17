@@ -80,6 +80,32 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private val playerScoreboards: MutableMap<UUID, org.bukkit.scoreboard.Scoreboard> = mutableMapOf()
     private val playerObjectives: MutableMap<UUID, org.bukkit.scoreboard.Objective> = mutableMapOf()
 
+    private val spectators: MutableSet<UUID> = mutableSetOf()
+    private val spectatorBackups: MutableMap<UUID, SpectatorBackup> = mutableMapOf()
+
+    private data class SpectatorBackup(
+        val location: org.bukkit.Location,
+        val gameMode: org.bukkit.GameMode,
+        val allowFlight: Boolean,
+        val isFlying: Boolean,
+        val maxHealthBase: Double,
+        val inventoryContents: Array<ItemStack?>,
+        val armorContents: Array<ItemStack?>,
+        val extraContents: Array<ItemStack?>,
+        val level: Int,
+        val exp: Float,
+        val health: Double,
+        val foodLevel: Int,
+        val saturation: Float,
+        val absorption: Double,
+        val potionEffects: List<PotionEffect>,
+        val scoreboard: org.bukkit.scoreboard.Scoreboard
+    )
+
+    fun getActivePlayerCount(): Int = commands.size
+    fun getSpectatorCount(): Int = spectators.size
+    fun getTimeLeftSeconds(): Int = timeLeft
+
     var totalPaintableBlocks: Int = 0
 
     val ammoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
@@ -101,6 +127,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private var ended = false
 
     fun shutdownGame() {
+        // Restore spectators before any world cleanup happens.
+        forceRemoveAllSpectators(forceLobby = true)
+
         gameTimerTask?.cancel()
         countdownTask?.cancel()
         scoreboardUpdateTask?.cancel()
@@ -196,6 +225,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     fun endGame(worldName: String) {
         if (ended) return
         ended = true
+
+        // Restore spectators before any world cleanup happens.
+        forceRemoveAllSpectators(forceLobby = true)
 
         gameTimerTask?.cancel()
         countdownTask?.cancel()
@@ -983,11 +1015,155 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val title = formatBossBarTitle()
         bossBar = Bukkit.createBossBar(title, BarColor.GREEN, BarStyle.SOLID)
         bossBar?.isVisible = true
-        commands.keys.forEach { playerId ->
+        (commands.keys + spectators).forEach { playerId ->
             val player = Bukkit.getPlayer(playerId)
             if (player != null) bossBar?.addPlayer(player)
         }
         updateBossBar()
+    }
+
+    fun addSpectator(player: Player) {
+        val uuid = player.uniqueId
+        if (spectators.contains(uuid)) return
+
+        val world = Bukkit.getWorld(worldName)
+        if (world == null) {
+            player.sendMessage("§cМир игры не найден: $worldName")
+            return
+        }
+
+        spectatorBackups[uuid] = SpectatorBackup(
+            location = player.location.clone(),
+            gameMode = player.gameMode,
+            allowFlight = player.allowFlight,
+            isFlying = player.isFlying,
+            maxHealthBase = player.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 20.0,
+            inventoryContents = player.inventory.contents.map { it?.clone() }.toTypedArray(),
+            armorContents = player.inventory.armorContents.map { it?.clone() }.toTypedArray(),
+            extraContents = player.inventory.extraContents.map { it?.clone() }.toTypedArray(),
+            level = player.level,
+            exp = player.exp,
+            health = player.health,
+            foodLevel = player.foodLevel,
+            saturation = player.saturation,
+            absorption = player.absorptionAmount,
+            potionEffects = player.activePotionEffects.map { pe ->
+                PotionEffect(pe.type, pe.duration, pe.amplifier, pe.isAmbient, pe.hasParticles(), pe.hasIcon())
+            },
+            scoreboard = player.scoreboard
+        )
+
+        // Remove from queue/lobby UI if present.
+        runCatching { ru.joutak.minigames.managers.MatchmakingManager.removePlayer(player) }
+
+        player.inventory.clear()
+        player.activePotionEffects.forEach { effect ->
+            player.removePotionEffect(effect.type)
+        }
+        restoreVanillaHealth(player)
+        player.foodLevel = 20
+        player.saturation = 20f
+        player.absorptionAmount = 0.0
+
+        player.gameMode = org.bukkit.GameMode.SPECTATOR
+        player.isCollidable = false
+
+        val tp = world.spawnLocation.clone().add(0.5, 0.0, 0.5)
+        if (tp.y < 75.0) tp.y = 75.0
+        player.teleport(tp)
+
+        spectators.add(uuid)
+        GameManager.setSpectating(uuid, worldName)
+
+        bossBar?.addPlayer(player)
+
+        // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
+        val sb = Bukkit.getScoreboardManager().newScoreboard
+        val obj = sb.registerNewObjective(
+            "gametimer",
+            org.bukkit.scoreboard.Criteria.DUMMY,
+            Component.text("Splatoon", NamedTextColor.GOLD)
+        )
+        obj.displaySlot = DisplaySlot.SIDEBAR
+        player.scoreboard = sb
+        playerScoreboards[uuid] = sb
+        playerObjectives[uuid] = obj
+
+        updateAllPlayerScoreboards()
+
+        player.sendMessage("§aРежим наблюдения: §f$arenaId §7($worldName)")
+    }
+
+    fun removeSpectator(player: Player, silent: Boolean = false, forceLobby: Boolean = false) {
+        val uuid = player.uniqueId
+        if (!spectators.remove(uuid)) return
+
+        bossBar?.removePlayer(player)
+        GameManager.clearSpectating(uuid)
+
+        playerObjectives.remove(uuid)
+        playerScoreboards.remove(uuid)
+
+        val backup = spectatorBackups.remove(uuid)
+        if (backup != null) {
+            player.inventory.clear()
+            player.inventory.contents = backup.inventoryContents.map { it?.clone() }.toTypedArray()
+            player.inventory.armorContents = backup.armorContents.map { it?.clone() }.toTypedArray()
+            player.inventory.extraContents = backup.extraContents.map { it?.clone() }.toTypedArray()
+
+            player.activePotionEffects.forEach { effect ->
+                player.removePotionEffect(effect.type)
+            }
+            backup.potionEffects.forEach { pe ->
+                runCatching { player.addPotionEffect(pe) }
+            }
+
+            player.gameMode = backup.gameMode
+            player.allowFlight = backup.allowFlight
+            player.isFlying = backup.isFlying
+            player.isCollidable = true
+
+            player.getAttribute(Attribute.MAX_HEALTH)?.baseValue = backup.maxHealthBase
+            player.absorptionAmount = backup.absorption
+            player.health = backup.health.coerceAtMost((player.getAttribute(Attribute.MAX_HEALTH)?.baseValue ?: 20.0))
+            player.foodLevel = backup.foodLevel
+            player.saturation = backup.saturation
+            player.level = backup.level
+            player.exp = backup.exp
+
+            player.scoreboard = backup.scoreboard
+
+            if (forceLobby) {
+                val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+                val spawn = lobbyWorld?.spawnLocation ?: Bukkit.getWorlds()[0].spawnLocation
+                player.teleport(spawn)
+            } else {
+                player.teleport(backup.location)
+            }
+        } else {
+            player.isCollidable = true
+            if (forceLobby) {
+                GameManager.sendToLobby(player)
+            }
+        }
+
+        if (!silent) {
+            player.sendMessage("§eТы вышел из режима наблюдения.")
+        }
+    }
+
+    fun forceRemoveAllSpectators(forceLobby: Boolean) {
+        val list = spectators.toList()
+        list.forEach { uuid ->
+            val p = Bukkit.getPlayer(uuid)
+            if (p != null) {
+                runCatching { removeSpectator(p, silent = true, forceLobby = forceLobby) }
+            } else {
+                spectators.remove(uuid)
+                spectatorBackups.remove(uuid)
+                GameManager.clearSpectating(uuid)
+            }
+        }
     }
 
     private fun removeBossBar() {
@@ -1048,7 +1224,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             if (isSpawnSafe(p)) protectedNames.add(p.name)
         }
 
-        commands.keys.forEach { viewerUuid ->
+        playerScoreboards.keys.forEach { viewerUuid ->
             val sb = playerScoreboards[viewerUuid] ?: return@forEach
             val team = sb.getTeam("sp_spawn") ?: sb.registerNewTeam("sp_spawn").apply {
                 setPrefix("§aSPAWN §r")
@@ -1073,7 +1249,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             activeTeams.sumOf { paintedCommand[it] ?: 0 }
         }
 
-        commands.keys.forEach { uuid ->
+        val viewers = playerObjectives.keys.toList()
+        viewers.forEach { uuid ->
             val sb = playerScoreboards[uuid] ?: return@forEach
             val obj = playerObjectives[uuid] ?: return@forEach
 
