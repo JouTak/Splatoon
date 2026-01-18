@@ -634,6 +634,45 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         player.health = player.maxHealth
         player.gameMode = GameMode.ADVENTURE
         player.isGliding = false
+
+        giveCeremonyFunItems(player)
+    }
+
+    private fun giveCeremonyFunItems(player: Player) {
+        // В церемонии хотим дать "игрушечные" пушки/бомбы: стрелять можно бесконечно,
+        // но попадания не должны красить и не должны наносить урон.
+        // Эффекты отключаются в listeners по метке projectile'а.
+
+        // Gun
+        val gun = ItemStack(Material.CROSSBOW, 1)
+        val gunMeta = gun.itemMeta
+        gunMeta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
+        gunMeta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "splatGun"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+
+        (gunMeta as? CrossbowMeta)?.let { crossbow ->
+            if (crossbow.chargedProjectiles.isEmpty()) {
+                runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
+            }
+        }
+        gun.itemMeta = gunMeta
+
+        // Bomb
+        val bomb = ItemStack(Material.GOLDEN_AXE, 1)
+        val bombMeta = bomb.itemMeta
+        bombMeta.displayName(Component.text("Сплат-бомба").color(TextColor.color(0xFFAA00)))
+        bombMeta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "Bomb"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+        bomb.itemMeta = bombMeta
+
+        player.inventory.addItem(gun)
+        player.inventory.addItem(bomb)
     }
 
     private fun endCeremonyAndFinalize() {
@@ -1059,7 +1098,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val teamName = teamLabel(winner)
 
         val subtitle = if (ceremonyStarted) {
-            "§7Церемония: §f${SplatoonSettings.ceremonyDurationSeconds}§7с"
+            "§7Порадуемся за победителей!§7с"
         } else {
             "§7Возвращение в лобби через §f${SplatoonSettings.returnToLobbyDelaySeconds}§7 сек..."
         }

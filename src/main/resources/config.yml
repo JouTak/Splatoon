@@ -23,36 +23,19 @@ game:
 
 # Ceremony stage (post-game).
 ceremony:
-  # If true, after match end players are moved to a cloned ceremony room for a few seconds.
   enabled: false
-
-  # Template world name for ceremony. Will be cloned uniquely per match (like arenas).
-  template_world: sp_ceremony
-
-  # How long (seconds) players stay on their podiums before being sent to lobby / kicked by tournament.
-  duration_seconds: 8
-
-  # 4 podium squares for places 1..4. Each is a region where players cannot leave (PlayerMoveEvent guard).
-  # min/max are block corners inclusive. Example below makes a 2x2 area: x=[0..1], z=[0..1].
+  # Template world name for ceremony (will be cloned uniquely per match)
+  template-name: sp_ceremony
+  # How long players stay on the podiums before returning to lobby
+  duration-seconds: 8
+  # During ceremony players receive a "toy" gun and bomb with unlimited use.
+  # Podiums for places 1..4 (order matters). Format: [x1, y, z1, x2, z2, yaw]
+  # x1/z1 and x2/z2 form a square/rectangle area (inclusive) where players are allowed to move.
   podiums:
-    - place: 1
-      min: [0, 64, 0]
-      max: [1, 64, 1]
-      # Optional exact spawn (center). If omitted, center of min/max is used.
-      spawn: [1.0, 65.0, 1.0, 180.0, 0.0]
-    - place: 2
-      min: [3, 64, 0]
-      max: [4, 64, 1]
-      spawn: [4.0, 65.0, 1.0, 180.0, 0.0]
-    - place: 3
-      min: [0, 64, 3]
-      max: [1, 64, 4]
-      spawn: [1.0, 65.0, 4.0, 0.0, 0.0]
-    - place: 4
-      min: [3, 64, 3]
-      max: [4, 64, 4]
-      spawn: [4.0, 65.0, 4.0, 0.0, 0.0]
-
+    - [0, 64, 0, 1, 1, 0]
+    - [3, 64, 0, 4, 1, 0]
+    - [0, 64, 3, 1, 4, 0]
+    - [3, 64, 3, 4, 4, 0]
 ink:
   # How many hits a player can take (Ink HP)
   max_hp: 3

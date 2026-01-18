@@ -21,6 +21,8 @@ import ru.joutak.splatoon.scripts.GameManager
 
 class PlayerUseListener(private val plugin: Plugin) : Listener {
 
+    private val ceremonyKey = "ceremonyKey"
+
     @EventHandler
     fun onClick(event: PlayerInteractEvent) {
         val player = event.player
@@ -58,6 +60,8 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
             }
 
+            val inCeremony = GameManager.getCeremonyBounds(player.uniqueId)?.worldName == player.world.name
+
             // Bomb визуально должен оставаться "Bomb" (ресурспак подхватывает модель по имени).
             // Цвет команды берётся из метаданных (paintTeam/baseTeam), а не из имени предмета.
             val projectileItem = createProjectileItem("Bomb")
@@ -85,9 +89,13 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
                 setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
                 setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
+
+                if (inCeremony) {
+                    setMetadata(ceremonyKey, FixedMetadataValue(plugin, 1))
+                }
             }
 
-            if (!isAdminUse) {
+            if (!isAdminUse && !inCeremony) {
                 val item = player.inventory.itemInMainHand
                 if (item.type != Material.AIR) {
                     if (item.amount <= 1) {

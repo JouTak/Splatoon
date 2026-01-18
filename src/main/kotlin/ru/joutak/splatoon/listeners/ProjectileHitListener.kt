@@ -23,12 +23,20 @@ import kotlin.math.floor
 
 class ProjectileHitListener : Listener {
 
+    private val ceremonyKey = "ceremonyKey"
+
     private val lastShooterHitMs = mutableMapOf<UUID, Long>()
 
     @EventHandler
     fun projectileHitEvent(event: ProjectileHitEvent) {
         val entity = event.entity
         if (entity.type != EntityType.SNOWBALL) return
+
+        // В церемонии разрешаем просто "пострелять" без покраски и без урона.
+        if (entity.hasMetadata(ceremonyKey)) {
+            entity.remove()
+            return
+        }
         if (!entity.hasMetadata("paintKey")) return
 
         val shooterUuid = getShooterUuid(entity.getMetadata("shooterId").firstOrNull()?.asString())
@@ -41,10 +49,7 @@ class ProjectileHitListener : Listener {
         val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt() ?: shooterTeam
         val isBomb = entity.hasMetadata("bombKey")
         val radius = if (isBomb) SplatoonSettings.bombPaintRadius else SplatoonSettings.gunPaintRadius
-        // Bombs should feel like a "one-shot" tool rather than getting an extra (bigger) paint burst on kill.
-        // For guns we keep the kill burst radius, for bombs we reuse the normal radius.
-        val killPaintRadius = if (isBomb) radius else SplatoonSettings.gunKillPaintRadius
-        val damagePerHit = if (isBomb) SplatoonSettings.inkMaxHp else 1
+        val killPaintRadius = if (isBomb) SplatoonSettings.bombKillPaintRadius else SplatoonSettings.gunKillPaintRadius
 
         val hitEntity = event.hitEntity
         val hitBlock = event.hitBlock
@@ -82,7 +87,7 @@ class ProjectileHitListener : Listener {
             if (paintTeam == victimTeam) return
             if (shooterTeam == victimTeam) return
 
-            val hpLeft = game.damageInkHp(victim.uniqueId, damagePerHit)
+            val hpLeft = game.damageInkHp(victim.uniqueId, 1)
 
             // Hit markers (sound + tiny actionbar) for both sides.
             playHitMarker(shooter, victim, hpLeft, game)
@@ -91,10 +96,7 @@ class ProjectileHitListener : Listener {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                // Extra paint burst on kill is only for gun shots.
-                if (!isBomb) {
-                    explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
-                }
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
             return
         }
@@ -132,7 +134,7 @@ class ProjectileHitListener : Listener {
             if (paintTeam == victimTeam) return@forEach
             if (shooterTeam == victimTeam) return@forEach
 
-            val hpLeft = game.damageInkHp(victim.uniqueId, damagePerHit)
+            val hpLeft = game.damageInkHp(victim.uniqueId, 1)
 
             // Bomb AOE: mark hits too (throttled for shooter).
             playHitMarker(shooter, victim, hpLeft, game)
@@ -141,10 +143,7 @@ class ProjectileHitListener : Listener {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                // Extra paint burst on kill is only for gun shots.
-                if (!isBomb) {
-                    explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
-                }
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
         }
     }

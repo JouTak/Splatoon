@@ -41,6 +41,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     private val adminKey = NamespacedKey(plugin, "splatoonAdmin")
     private val adminTeamKey = NamespacedKey(plugin, "adminTeam")
 
+    private val ceremonyKey = "ceremonyKey"
+
     private val nextShotAtMs = mutableMapOf<UUID, Long>()
 
     // Скорострельность (по кликам)
@@ -128,6 +130,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val projectileItem = createProjectileItem(colorName)
         val dir = player.eyeLocation.direction.normalize()
         val muzzle = muzzleLocation(player.eyeLocation, dir)
+        val inCeremony = GameManager.getCeremonyBounds(player.uniqueId)?.worldName == player.world.name
 
         // Мягкий "красящий" звук вместо любых звуков арбалета.
         // Важно: используем точный key как в /playsound, чтобы не зависеть от enum.
@@ -138,6 +141,10 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             snowball.setGravity(!SplatoonSettings.gunDisableGravity)
             snowball.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
             snowball.shooter = player
+
+            if (inCeremony) {
+                snowball.setMetadata(ceremonyKey, FixedMetadataValue(plugin, 1))
+            }
 
             snowball.setMetadata("paintKey", FixedMetadataValue(plugin, 1))
             snowball.setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))

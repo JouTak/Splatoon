@@ -64,6 +64,10 @@ object SplatoonSettings {
     var ceremonyDurationSeconds: Int = 8
         private set
 
+    // How many wind charges to give each player during ceremony (0 = none)
+    var ceremonyWindCharges: Int = 0
+        private set
+
     // 4 podium squares (2x2 blocks each by default). Keys: place 1..4.
     val ceremonyPodiumsByPlace: MutableMap<Int, CeremonyPodium> = mutableMapOf()
 
@@ -192,31 +196,95 @@ object SplatoonSettings {
 
         gameDurationSeconds = max(1, config.getInt("game.duration_seconds", 300))
         returnToLobbyDelaySeconds = max(0, config.getInt("game.return_to_lobby_delay_seconds", 5))
-
         ceremonyEnabled = config.getBoolean("ceremony.enabled", false)
-        ceremonyTemplateWorld = config.getString("ceremony.template_world") ?: "sp_ceremony"
-        ceremonyDurationSeconds = max(0, config.getInt("ceremony.duration_seconds", 8))
+
+        // Preferred (CW-like) ceremony config:
+        // ceremony:
+        //   enabled: true
+        //   template-name: Ceremony
+        //   duration-seconds: 10
+        //   wind-charges: 16
+        //   podiums:
+        //     - [x1, y, z1, x2, z2, yaw]
+        ceremonyTemplateWorld =
+            config.getString("ceremony.template-name")
+                ?: config.getString("ceremony.template_name")
+                ?: config.getString("ceremony.template_world")
+                ?: "sp_ceremony"
+
+        ceremonyDurationSeconds = max(
+            0,
+            config.getInt("ceremony.duration-seconds", config.getInt("ceremony.duration_seconds", 8))
+        )
+
+        ceremonyWindCharges = max(
+            0,
+            config.getInt("ceremony.wind-charges", config.getInt("ceremony.wind_charges", 0))
+        )
 
         ceremonyPodiumsByPlace.clear()
-        val podiumsRaw = config.getMapList("ceremony.podiums") ?: emptyList<Map<String, Any>>()
-        for (raw in podiumsRaw) {
-            val place = (raw["place"] as? Int) ?: continue
-            val min = parseIntCoord3(raw["min"]) ?: continue
-            val maxc = parseIntCoord3(raw["max"]) ?: continue
-            val spawn = parseSpawnPoint(raw["spawn"])
-            val (minX, minY, minZ) = min
-            val (maxX, maxY, maxZ) = maxc
-            val podium = CeremonyPodium(
-                place = place,
-                minX = kotlin.math.min(minX, maxX),
-                minY = kotlin.math.min(minY, maxY),
-                minZ = kotlin.math.min(minZ, maxZ),
-                maxX = kotlin.math.max(minX, maxX),
-                maxY = kotlin.math.max(minY, maxY),
-                maxZ = kotlin.math.max(minZ, maxZ),
-                spawn = spawn
-            )
-            ceremonyPodiumsByPlace[place] = podium
+
+        val podiumsAny = config.getList("ceremony.podiums") ?: emptyList<Any>()
+        val listEntries = podiumsAny.filterIsInstance<List<*>>()
+        if (listEntries.isNotEmpty()) {
+            // New format: list entries are in order (place = index + 1).
+            listEntries.forEachIndexed { idx, entry ->
+                if (idx >= 4) return@forEachIndexed
+                if (entry.size < 6) return@forEachIndexed
+
+                val x1 = (entry[0] as? Number)?.toInt() ?: return@forEachIndexed
+                val y = (entry[1] as? Number)?.toInt() ?: return@forEachIndexed
+                val z1 = (entry[2] as? Number)?.toInt() ?: return@forEachIndexed
+                val x2 = (entry[3] as? Number)?.toInt() ?: return@forEachIndexed
+                val z2 = (entry[4] as? Number)?.toInt() ?: return@forEachIndexed
+                val yaw = (entry[5] as? Number)?.toFloat() ?: return@forEachIndexed
+
+                val minX = kotlin.math.min(x1, x2)
+                val maxX = kotlin.math.max(x1, x2)
+                val minZ = kotlin.math.min(z1, z2)
+                val maxZ = kotlin.math.max(z1, z2)
+
+                val centerX = (minX + maxX) / 2.0 + 0.5
+                val centerZ = (minZ + maxZ) / 2.0 + 0.5
+
+                val podium = CeremonyPodium(
+                    place = idx + 1,
+                    minX = minX,
+                    minY = y,
+                    minZ = minZ,
+                    maxX = maxX,
+                    maxY = y,
+                    maxZ = maxZ,
+                    spawn = SpawnPoint(centerX, y.toDouble(), centerZ, yaw, 0f)
+                )
+                ceremonyPodiumsByPlace[idx + 1] = podium
+            }
+        } else {
+            // Legacy format (map list with place/min/max/spawn).
+            val mapEntries = podiumsAny.filterIsInstance<Map<*, *>>()
+            for (rawAny in mapEntries) {
+                val raw = rawAny.entries.associate { it.key.toString() to it.value }
+
+                val place = (raw["place"] as? Number)?.toInt() ?: continue
+                val min = parseIntCoord3(raw["min"]) ?: continue
+                val max = parseIntCoord3(raw["max"]) ?: continue
+                val spawn = parseSpawnPoint(raw["spawn"])
+
+                val (minX0, minY0, minZ0) = min
+                val (maxX0, maxY0, maxZ0) = max
+
+                val podium = CeremonyPodium(
+                    place = place,
+                    minX = kotlin.math.min(minX0, maxX0),
+                    minY = kotlin.math.min(minY0, maxY0),
+                    minZ = kotlin.math.min(minZ0, maxZ0),
+                    maxX = kotlin.math.max(minX0, maxX0),
+                    maxY = kotlin.math.max(minY0, maxY0),
+                    maxZ = kotlin.math.max(minZ0, maxZ0),
+                    spawn = spawn
+                )
+                ceremonyPodiumsByPlace[place] = podium
+            }
         }
 
         scoreboardUpdateTicks = max(1, config.getLong("game.scoreboard_update_ticks", 10))
