@@ -452,19 +452,47 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return if (totalPaintableBlocks > 0) blocks.toDouble() * 100.0 / totalPaintableBlocks.toDouble() else blocks.toDouble()
     }
 
+    private fun normalizePlacementsAllTeams(raw: Map<Int, Int>): Map<Int, Int> {
+        val out = mutableMapOf<Int, Int>()
+        val usedPlaces = mutableSetOf<Int>()
+
+        // Keep only valid unique placements for teams 0..3.
+        for (teamId in 0..3) {
+            val place = raw[teamId] ?: continue
+            if (place !in 1..4) continue
+            if (usedPlaces.contains(place)) continue
+            out[teamId] = place
+            usedPlaces.add(place)
+        }
+
+        val missingTeams = (0..3).filter { it !in out }
+        val remainingPlaces = (1..4).filter { it !in usedPlaces }.toMutableList()
+
+        // Fill missing with remaining unique places (stable order).
+        missingTeams.forEachIndexed { idx, teamId ->
+            out[teamId] = remainingPlaces.getOrNull(idx) ?: 4
+        }
+
+        return out
+    }
+
     private fun buildMatchResult(winnerTeam: Int, placementByTeam: Map<Int, Int>): MatchResult {
         val now = System.currentTimeMillis()
-        val activeTeams = commands.values.toSet()
-        val sortedTeams = activeTeams.toList().sortedBy { placementByTeam[it] ?: Int.MAX_VALUE }
 
-        val teamResults = sortedTeams.map { teamId ->
-            val players = commands.filterValues { it == teamId }.keys.toList()
+        // Tournament contract: always report 4 teams (0..3) and all participants from the start snapshot.
+        val placements = normalizePlacementsAllTeams(placementByTeam)
+
+        val teamResults = (0..3).map { teamId ->
             val percent = computeTeamScorePercent(teamId)
-            val killsTotal = players.sumOf { kills[it] ?: 0 }
+            val killsTotal = playerTeamsSnapshot
+                .filterValues { it == teamId }
+                .keys
+                .sumOf { kills[it] ?: 0 }
+            val place = placements[teamId] ?: 4
             TeamResult(
                 teamId = teamId,
-                placement = placementByTeam[teamId],
-                isWinner = teamId == winnerTeam,
+                placement = place,
+                isWinner = place == 1,
                 score = percent,
                 metrics = listOf(
                     Metric.real("paint_percent", percent),
@@ -473,10 +501,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             )
         }
 
-        val playerResults = commands.keys.map { uuid ->
-            val teamId = playerTeamsSnapshot[uuid] ?: commands[uuid]
+        val playerResults = playerTeamsSnapshot.keys.map { uuid ->
+            val teamId = playerTeamsSnapshot[uuid] ?: commands[uuid] ?: 0
             val name = playerNames[uuid] ?: Bukkit.getOfflinePlayer(uuid).name
-            val isWinner = teamId != null && teamId == winnerTeam
+            val isWinner = (placements[teamId] ?: 4) == 1
             PlayerResult(
                 playerUuid = uuid,
                 playerName = name,
