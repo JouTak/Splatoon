@@ -9,6 +9,7 @@ import ru.joutak.splatoon.commands.SplatoonCommand
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.listeners.BacillusHitListener
 import ru.joutak.splatoon.listeners.BoostPickupListener
+import ru.joutak.splatoon.listeners.CeremonyMoveListener
 import ru.joutak.splatoon.listeners.DamageGuardListener
 import ru.joutak.splatoon.listeners.NaturalRegenerationListener
 import ru.joutak.splatoon.listeners.PlayerSessionListener
@@ -34,6 +35,7 @@ class SplatoonPlugin : JavaPlugin() {
         SplatoonSettings.load(config, logger)
 
         GameManager.registerTemplateWorld(SplatoonSettings.defaultTemplateWorld)
+        GameManager.registerTemplateWorld(SplatoonSettings.ceremonyTemplateWorld)
     }
 
     private fun loadArenas() {
@@ -79,6 +81,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunProtectionListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
+        Bukkit.getPluginManager().registerEvents(CeremonyMoveListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
 
         val cmd = getCommand("splatoon")

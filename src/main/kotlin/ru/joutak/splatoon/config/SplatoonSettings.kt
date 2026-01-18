@@ -22,6 +22,17 @@ data class ArenaSettings(
     val instances: Int
 )
 
+data class CeremonyPodium(
+    val place: Int,
+    val minX: Int,
+    val minY: Int,
+    val minZ: Int,
+    val maxX: Int,
+    val maxY: Int,
+    val maxZ: Int,
+    val spawn: SpawnPoint? = null
+)
+
 object SplatoonSettings {
     var lobbyWorldName: String = "world"
         private set
@@ -41,6 +52,20 @@ object SplatoonSettings {
 
     var returnToLobbyDelaySeconds: Int = 5
         private set
+
+
+    var ceremonyEnabled: Boolean = false
+        private set
+
+    var ceremonyTemplateWorld: String = "sp_ceremony"
+        private set
+
+    // How long players stay in the ceremony room before returning (or being kicked by tournament).
+    var ceremonyDurationSeconds: Int = 8
+        private set
+
+    // 4 podium squares (2x2 blocks each by default). Keys: place 1..4.
+    val ceremonyPodiumsByPlace: MutableMap<Int, CeremonyPodium> = mutableMapOf()
 
     var scoreboardUpdateTicks: Long = 10
         private set
@@ -167,6 +192,33 @@ object SplatoonSettings {
 
         gameDurationSeconds = max(1, config.getInt("game.duration_seconds", 300))
         returnToLobbyDelaySeconds = max(0, config.getInt("game.return_to_lobby_delay_seconds", 5))
+
+        ceremonyEnabled = config.getBoolean("ceremony.enabled", false)
+        ceremonyTemplateWorld = config.getString("ceremony.template_world") ?: "sp_ceremony"
+        ceremonyDurationSeconds = max(0, config.getInt("ceremony.duration_seconds", 8))
+
+        ceremonyPodiumsByPlace.clear()
+        val podiumsRaw = config.getMapList("ceremony.podiums") ?: emptyList<Map<String, Any>>()
+        for (raw in podiumsRaw) {
+            val place = (raw["place"] as? Int) ?: continue
+            val min = parseIntCoord3(raw["min"]) ?: continue
+            val maxc = parseIntCoord3(raw["max"]) ?: continue
+            val spawn = parseSpawnPoint(raw["spawn"])
+            val (minX, minY, minZ) = min
+            val (maxX, maxY, maxZ) = maxc
+            val podium = CeremonyPodium(
+                place = place,
+                minX = kotlin.math.min(minX, maxX),
+                minY = kotlin.math.min(minY, maxY),
+                minZ = kotlin.math.min(minZ, maxZ),
+                maxX = kotlin.math.max(minX, maxX),
+                maxY = kotlin.math.max(minY, maxY),
+                maxZ = kotlin.math.max(minZ, maxZ),
+                spawn = spawn
+            )
+            ceremonyPodiumsByPlace[place] = podium
+        }
+
         scoreboardUpdateTicks = max(1, config.getLong("game.scoreboard_update_ticks", 10))
         actionbarUpdateTicks = max(1, config.getLong("game.actionbar_update_ticks", 5))
 
@@ -245,6 +297,19 @@ object SplatoonSettings {
             val s = ArenaSettings(id, world, teamCount, playersPerTeam, spawns, instances)
             arenas.add(s)
             arenasById[id] = s
+        }
+    }
+
+    private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {
+        if (item !is List<*>) return null
+        if (item.size < 3) return null
+        return try {
+            val x = (item[0] as Number).toInt()
+            val y = (item[1] as Number).toInt()
+            val z = (item[2] as Number).toInt()
+            Triple(x, y, z)
+        } catch (_: Exception) {
+            null
         }
     }
 

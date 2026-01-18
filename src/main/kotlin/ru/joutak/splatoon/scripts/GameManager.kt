@@ -1,7 +1,6 @@
 package ru.joutak.splatoon.scripts
 
 import com.onarandombox.MultiverseCore.MultiverseCore
-import com.onarandombox.MultiverseCore.enums.AllowedPortalType
 import org.bukkit.*
 import org.bukkit.Bukkit.getWorld
 import org.bukkit.attribute.Attribute
@@ -24,9 +23,133 @@ object GameManager {
 
     private val templateWorlds: MutableSet<String> = mutableSetOf()
 
+    data class CeremonyBounds(
+        val worldName: String,
+        val minX: Double,
+        val maxX: Double,
+        val minZ: Double,
+        val maxZ: Double,
+        val safeLocation: Location
+    )
+
+    private val ceremonyBoundsByPlayer: MutableMap<UUID, CeremonyBounds> = mutableMapOf()
+
     fun registerTemplateWorld(worldName: String) {
         templateWorlds.add(worldName)
     }
+
+    fun setCeremonyBounds(uuid: UUID, bounds: CeremonyBounds) {
+        ceremonyBoundsByPlayer[uuid] = bounds
+    }
+
+    fun clearCeremonyBounds(uuid: UUID) {
+        ceremonyBoundsByPlayer.remove(uuid)
+    }
+
+    fun getCeremonyBounds(uuid: UUID): CeremonyBounds? = ceremonyBoundsByPlayer[uuid]
+
+    fun clearCeremonyBoundsForWorld(worldName: String) {
+        val it = ceremonyBoundsByPlayer.entries.iterator()
+        while (it.hasNext()) {
+            val e = it.next()
+            if (e.value.worldName == worldName) it.remove()
+        }
+    }
+
+    fun cleanupClonedWorld(worldName: String) {
+        cleanupWorld(worldName)
+    }
+
+    fun cloneWorldFromTemplate(templateWorldName: String): World? {
+        val multiverseCore = Bukkit.getPluginManager().getPlugin("Multiverse-Core") as? MultiverseCore ?: return null
+        val template = Bukkit.getWorld(templateWorldName) ?: run {
+            SplatoonPlugin.instance.logger.warning("Template world $templateWorldName is not loaded; can't clone ceremony.")
+            return null
+        }
+
+        val mvTemplate = multiverseCore.mvWorldManager.getMVWorld(template.name) ?: run {
+            SplatoonPlugin.instance.logger.warning("Template world $templateWorldName is not registered in Multiverse; can't clone ceremony.")
+            return null
+        }
+
+        val worldName = nextWorldName(templateWorldName)
+        cleanupWorld(worldName)
+
+        try {
+            multiverseCore.mvWorldManager.cloneWorld(template.name, worldName)
+            if (multiverseCore.mvWorldManager.getMVWorld(worldName) == null) {
+                multiverseCore.mvWorldManager.addWorld(
+                    worldName,
+                    mvTemplate.environment,
+                    null,
+                    mvTemplate.worldType,
+                    true,
+                    mvTemplate.generator
+                )
+            }
+        } catch (e: Exception) {
+            SplatoonPlugin.instance.logger.severe("World clone $worldName failed")
+            e.printStackTrace()
+            cleanupWorld(worldName)
+            return null
+        }
+
+        val world = Bukkit.getWorld(worldName) ?: Bukkit.createWorld(WorldCreator(worldName)) ?: run {
+            SplatoonPlugin.instance.logger.severe("Failed to load cloned world $worldName")
+            cleanupWorld(worldName)
+            return null
+        }
+
+        val mvWorld = multiverseCore.mvWorldManager.getMVWorld(worldName)
+        if (mvWorld != null) {
+            // Keep this compatible with older Multiverse versions: only use the stable APIs.
+            runCatching { mvWorld.setTime("day") }
+            runCatching { mvWorld.setEnableWeather(false) }
+        }
+
+        // Ceremony worlds should be safe even if template had different settings.
+        runCatching { world.pvp = false }
+        runCatching { world.setGameRule(GameRule.DO_MOB_SPAWNING, false) }
+        runCatching { world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false) }
+        runCatching { world.setGameRule(GameRule.DO_FIRE_TICK, false) }
+        runCatching { world.setStorm(false) }
+        runCatching { world.isThundering = false }
+
+        arenas[worldName] = world
+        return world
+    }
+
+    private fun disablePortalMakingCompat(mvWorld: Any) {
+        // Multiverse-Core API differs between versions (MV2/MV5).
+        // Try to disable portal creation without referencing optional enums at compile-time.
+        runCatching {
+            val m = mvWorld.javaClass.methods.firstOrNull { it.name == "allowPortalMaking" && it.parameterCount == 1 }
+                ?: return@runCatching
+            val p = m.parameterTypes[0]
+            val arg: Any? = when {
+                p == java.lang.Boolean.TYPE || p == java.lang.Boolean::class.java -> false
+                p.isEnum -> p.enumConstants?.firstOrNull {
+                    (it as? Enum<*>)?.name?.equals("NONE", ignoreCase = true) == true
+                }
+                else -> null
+            }
+            if (arg != null) m.invoke(mvWorld, arg)
+        }
+
+        // Older Multiverse versions used setPortalForm(enum).
+        runCatching {
+            val m = mvWorld.javaClass.methods.firstOrNull { it.name == "setPortalForm" && it.parameterCount == 1 }
+                ?: return@runCatching
+            val p = m.parameterTypes[0]
+            val arg: Any? = if (p.isEnum) {
+                p.enumConstants?.firstOrNull {
+                    (it as? Enum<*>)?.name?.equals("NONE", ignoreCase = true) == true
+                }
+            } else null
+            if (arg != null) m.invoke(mvWorld, arg)
+        }
+    }
+
 
     fun sendToLobby(player: Player) {
         val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
@@ -144,7 +267,7 @@ object GameManager {
             mvWorld.hunger = true
             mvWorld.setAllowAnimalSpawn(false)
             mvWorld.setAllowMonsterSpawn(false)
-            mvWorld.allowPortalMaking(AllowedPortalType.NONE)
+            disablePortalMakingCompat(mvWorld)
         }
 
         val worldName = nextWorldName(templateWorldName)
@@ -179,7 +302,13 @@ object GameManager {
         arenas[worldName] = world
 
         val game = Game(worldName, baseArenaId, arenaSettings?.spawns ?: emptyMap())
-        gamesByWorld[worldName] = game
+
+        // Snapshot tournament keys as early as possible (if instance provides them).
+        for (teamIndex in 0..3) {
+            val teamKey = runCatching { instance.getTournamentTeamKey(teamIndex) }.getOrNull()
+            game.setTournamentTeamKey(teamIndex, teamKey)
+        }
+
         gamesByWorld[worldName] = game
 
         val playersToRemove = mutableListOf<Player>()

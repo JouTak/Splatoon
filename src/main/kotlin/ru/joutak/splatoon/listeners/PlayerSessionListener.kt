@@ -37,6 +37,9 @@ class PlayerSessionListener : Listener {
             GameManager.clearSpectating(uuid)
         }
 
+        // Ceremony movement guard cleanup.
+        GameManager.clearCeremonyBounds(uuid)
+
         GameManager.removePlayerFromGame(uuid)
     }
 
@@ -53,6 +56,10 @@ class PlayerSessionListener : Listener {
 
             // If the player had a stale spectate state (e.g. crash/reload), drop it.
             GameManager.clearSpectating(uuid)
+
+            // If the player had a stale ceremony guard state (e.g. crash/reload), drop it.
+            GameManager.clearCeremonyBounds(uuid)
+
             GameManager.removePlayerFromGame(uuid)
             GameManager.sendToLobby(player)
         })

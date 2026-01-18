@@ -6,8 +6,12 @@ import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
+import org.bukkit.GameMode
+import org.bukkit.GameRule
+import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.World
@@ -26,6 +30,7 @@ import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
+import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.minigames.results.model.MatchResult
 import ru.joutak.minigames.results.model.Metric
 import ru.joutak.minigames.results.model.PlayerResult
@@ -47,6 +52,16 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     val startedAtMs: Long = System.currentTimeMillis()
     @Volatile
     private var resultsSent: Boolean = false
+
+    /**
+     * Tournament-only mapping: teamIndex -> tournament team_key.
+     * Snapshot is provided by [GameManager] at match start.
+     */
+    private val tournamentTeamKeysByIndex: MutableMap<Int, String?> = mutableMapOf()
+
+    fun setTournamentTeamKey(teamIndex: Int, teamKey: String?) {
+        tournamentTeamKeysByIndex[teamIndex] = teamKey
+    }
 
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
@@ -72,6 +87,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private var actionBarTask: BukkitTask? = null
 
     private var endingCleanupTask: BukkitTask? = null
+
+    private var ceremonyTask: BukkitTask? = null
+    private var ceremonyWorldName: String? = null
+    private var pendingMatchResult: MatchResult? = null
 
     
     private var countdownLeft: Int? = null
@@ -345,177 +364,258 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         if (ended) return
         ended = true
 
-        // Restore spectators before any world cleanup happens.
+        // Spectators must not remain in the match world during ceremony/cleanup.
         forceRemoveAllSpectators(forceLobby = true)
 
-        gameTimerTask?.cancel()
-        countdownTask?.cancel()
-        scoreboardUpdateTask?.cancel()
-        boostTimerTask?.cancel()
-        actionBarTask?.cancel()
+        // Stop match tasks
+        countdownLeft = null
+        countdownTask?.cancel(); countdownTask = null
+        gameTimerTask?.cancel(); gameTimerTask = null
+        boostTimerTask?.cancel(); boostTimerTask = null
+        scoreboardUpdateTask?.cancel(); scoreboardUpdateTask = null
+        actionBarTask?.cancel(); actionBarTask = null
 
+        // Remove HUD
         removeBossBar()
         clearScoreboards()
 
-        ammoOverride.clear()
-        spawnProtectedUntil.clear()
-        spawnProtectedOrigin.clear()
-        spawnProtectionMoved.clear()
-        inkHp.clear()
-        inkRegenCarry.clear()
-        inkLastDamageAt.clear()
-        actionBarOverlayUntilMs.clear()
-        actionBarOverlayText.clear()
+        val winnerTeam = determineWinner()
+        val placementByTeam = computePlacementByTeam()
 
-        val winner = determineWinner()
+        // Build result now, but record it only after ceremony (so tournament kick happens after the ceremony).
+        pendingMatchResult = buildMatchResult(winnerTeam, placementByTeam)
 
-        sendMatchResultsIfNeeded(winner)
+        val ceremonyStarted = tryStartCeremony(placementByTeam)
+        showWinnerAnnouncement(winnerTeam, ceremonyStarted)
 
-        Bukkit.getScheduler().runTask(SplatoonPlugin.instance, Runnable {
-            showWinnerAnnouncement(winner)
-        })
-
-        playSoundToAllPlayers(
-            Sound.sound(
-                Key.key("ui.toast.challenge_complete"),
-                Sound.Source.MASTER,
-                1.0f,
-                1.0f
-            )
-        )
-
-        // Store ending cleanup task so admins can force cleanup immediately.
-        endingCleanupTask?.cancel()
-        cleanupStarted = false
-
-        endingCleanupTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            finishCleanupNow(force = false)
-        }, SplatoonSettings.returnToLobbyDelaySeconds * 20L)
-    }
-
-    private fun finishCleanupNow(force: Boolean) {
-        if (cleanupStarted && !force) return
-        cleanupStarted = true
-
-        endingCleanupTask?.cancel()
-        endingCleanupTask = null
-
-        val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
-
-        val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
-        if (lobbyWorld == null) {
-            SplatoonPlugin.instance.logger.severe(
-                "Не удалось найти мир лобби: ${SplatoonSettings.lobbyWorldName}. Удаление игры остановлено."
-            )
-            GameManager.deleteGame(this.worldName, this)
+        if (ceremonyStarted) {
             return
         }
 
-        commands.keys.forEach { playerId ->
-            val player = Bukkit.getPlayer(playerId) ?: return@forEach
-            player.scoreboard = emptyScoreboard
-            player.inventory.clear()
-            restoreVanillaHealth(player)
-            player.foodLevel = 20
-            player.saturation = 20f
-            player.activePotionEffects.forEach { effect ->
-                player.removePotionEffect(effect.type)
-            }
-            player.teleport(lobbyWorld.spawnLocation)
-        }
+        // No ceremony configured / failed to start -> record right away and return to lobby after delay
+        pendingMatchResult?.let { recordMatchResultIfNeeded(it) }
 
-        GameManager.deleteGame(this.worldName, this)
+        endingCleanupTask?.cancel(); endingCleanupTask = null
+        val delayTicks = (SplatoonSettings.returnToLobbyDelaySeconds.coerceAtLeast(0) * 20).toLong()
+        endingCleanupTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            finishCleanupNow(force = false)
+        }, delayTicks)
     }
 
-    private fun sendMatchResultsIfNeeded(winnerTeam: Int) {
-        if (resultsSent) return
-        resultsSent = true
 
-        val endedAtMs = System.currentTimeMillis()
+    private fun finishCleanupNow(force: Boolean) {
+        if (cleanupStarted) return
+        cleanupStarted = true
 
-        val allTeams = (playerTeamsSnapshot.values + commands.values).toSet().sorted()
+        endingCleanupTask?.cancel(); endingCleanupTask = null
+        ceremonyTask?.cancel(); ceremonyTask = null
 
-        // Scores are in percent (0..100) if totalPaintableBlocks is known.
-        val scoreByTeam = mutableMapOf<Int, Double>()
-        allTeams.forEach { t ->
-            val blocks = paintedCommand[t] ?: 0
-            val pct = if (totalPaintableBlocks > 0) blocks * 100.0 / totalPaintableBlocks else blocks.toDouble()
-            scoreByTeam[t] = pct
+        val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+        if (lobbyWorld == null) {
+            SplatoonPlugin.instance.logger.warning("Lobby world '${SplatoonSettings.lobbyWorldName}' is not loaded. Can't cleanup game.")
+            return
         }
 
-        val sortedTeams = allTeams.sortedWith(compareByDescending<Int> { scoreByTeam[it] ?: 0.0 }.thenBy { it })
-        val placementByTeam = mutableMapOf<Int, Int>()
-        var place = 1
-        sortedTeams.forEach { t ->
-            placementByTeam[t] = place
-            place++
+        // Teleport participants to lobby
+        val lobbyLoc = lobbyWorld.spawnLocation
+        commands.keys.forEach { uuid ->
+            GameManager.clearCeremonyBounds(uuid)
+            val player = Bukkit.getPlayer(uuid) ?: return@forEach
+            player.inventory.clear()
+            player.activePotionEffects.forEach { eff -> player.removePotionEffect(eff.type) }
+            player.foodLevel = 20
+            player.saturation = 20f
+            player.fireTicks = 0
+            player.health = player.maxHealth
+            player.teleport(lobbyLoc)
         }
 
-        val teamPlayerCounts = mutableMapOf<Int, Int>()
-        playerTeamsSnapshot.values.forEach { t ->
-            teamPlayerCounts[t] = (teamPlayerCounts[t] ?: 0) + 1
+        // Cleanup ceremony world (if any)
+        val ceremonyWorldNameSnapshot = ceremonyWorldName
+        if (ceremonyWorldNameSnapshot != null) {
+            GameManager.clearCeremonyBoundsForWorld(ceremonyWorldNameSnapshot)
+            GameManager.cleanupClonedWorld(ceremonyWorldNameSnapshot)
+            ceremonyWorldName = null
         }
 
-        val teams = allTeams.map { t ->
-            val blocks = paintedCommand[t] ?: 0
-            val pct = scoreByTeam[t] ?: 0.0
+        // Remove game instance
+        GameManager.deleteGame(worldName, this)
+        pendingMatchResult = null
+
+        removeBossBar()
+        clearScoreboards()
+    }
+
+
+    private fun computeTeamScorePercent(teamId: Int): Double {
+        val blocks = (paintedCommand[teamId] ?: 0).coerceAtLeast(0)
+        return if (totalPaintableBlocks > 0) blocks.toDouble() * 100.0 / totalPaintableBlocks.toDouble() else blocks.toDouble()
+    }
+
+    private fun buildMatchResult(winnerTeam: Int, placementByTeam: Map<Int, Int>): MatchResult {
+        val now = System.currentTimeMillis()
+        val activeTeams = commands.values.toSet()
+        val sortedTeams = activeTeams.toList().sortedBy { placementByTeam[it] ?: Int.MAX_VALUE }
+
+        val teamResults = sortedTeams.map { teamId ->
+            val players = commands.filterValues { it == teamId }.keys.toList()
+            val percent = computeTeamScorePercent(teamId)
+            val killsTotal = players.sumOf { kills[it] ?: 0 }
             TeamResult(
-                teamId = t + 1,
-                placement = placementByTeam[t],
-                isWinner = t == winnerTeam,
-                score = pct,
+                teamId = teamId,
+                placement = placementByTeam[teamId],
+                isWinner = teamId == winnerTeam,
+                score = percent,
                 metrics = listOf(
-                    Metric.int("paint_blocks", blocks.toLong()),
-                    Metric.real("paint_percent", pct),
-                    Metric.int("players", (teamPlayerCounts[t] ?: 0).toLong())
-                )
+                    Metric.real("paint_percent", percent),
+                    Metric.int("kills", killsTotal.toLong()),
+                ),
             )
         }
 
-        val allPlayers = mutableSetOf<UUID>()
-        allPlayers.addAll(playerTeamsSnapshot.keys)
-        allPlayers.addAll(commands.keys)
-        allPlayers.addAll(paintedPerson.keys)
-        allPlayers.addAll(kills.keys)
-
-        val players = allPlayers.map { uuid ->
-            val team = playerTeamsSnapshot[uuid] ?: commands[uuid]
-
-            val name = playerNames[uuid]
-                ?: Bukkit.getPlayer(uuid)?.name
-                ?: Bukkit.getOfflinePlayer(uuid).name
-
-            val paintBlocks = paintedPerson[uuid] ?: 0
-            val paintPct = if (totalPaintableBlocks > 0) paintBlocks * 100.0 / totalPaintableBlocks else paintBlocks.toDouble()
-            val k = kills[uuid] ?: 0
-
+        val playerResults = commands.keys.map { uuid ->
+            val teamId = playerTeamsSnapshot[uuid] ?: commands[uuid]
+            val name = playerNames[uuid] ?: Bukkit.getOfflinePlayer(uuid).name
+            val isWinner = teamId != null && teamId == winnerTeam
             PlayerResult(
                 playerUuid = uuid,
                 playerName = name,
-                teamId = team?.plus(1),
-                isWinner = team != null && team == winnerTeam,
+                teamId = teamId,
+                isWinner = isWinner,
                 joinedAtMs = playerJoinedAtMs[uuid],
                 leftAtMs = playerLeftAtMs[uuid],
                 metrics = listOf(
-                    Metric.int("kills", k.toLong()),
-                    Metric.int("paint_blocks", paintBlocks.toLong()),
-                    Metric.real("paint_percent", paintPct),
-                )
+                    Metric.int("paint_contribution", (paintedPerson[uuid] ?: 0).toLong()),
+                    Metric.int("kills", (kills[uuid] ?: 0).toLong()),
+                ),
             )
         }
 
-        val result = MatchResult(
+        return MatchResult(
             matchId = matchId,
-            startedAtMs = startedAtMs,
-            endedAtMs = endedAtMs,
+            // Will be overridden by MiniGamesAPI according to config (mode.name).
+            modeKey = "splatoon",
             mapKey = arenaId,
-            teams = teams,
-            players = players
+            startedAtMs = startedAtMs,
+            endedAtMs = now,
+            teams = teamResults,
+            players = playerResults,
         )
-
-        // Safe when results are disabled; do not block the main thread.
-        MiniGamesAPI.recordMatchResult(result)
     }
+
+    private fun recordMatchResultIfNeeded(result: MatchResult) {
+        if (resultsSent) return
+        resultsSent = true
+        try {
+            MiniGamesAPI.recordMatchResult(result)
+        } catch (t: Throwable) {
+            SplatoonPlugin.instance.logger.warning("Failed to record match result: ${t.message}")
+            t.printStackTrace()
+        }
+    }
+
+    private fun tryStartCeremony(placementByTeam: Map<Int, Int>): Boolean {
+        if (!SplatoonSettings.ceremonyEnabled) return false
+
+        val podiums = SplatoonSettings.ceremonyPodiumsByPlace
+        if (podiums.size < 4) {
+            SplatoonPlugin.instance.logger.warning("Ceremony is enabled, but ceremony.podiums has less than 4 entries. Skipping ceremony.")
+            return false
+        }
+
+        val ceremonyWorld = GameManager.cloneWorldFromTemplate(SplatoonSettings.ceremonyTemplateWorld)
+        if (ceremonyWorld == null) {
+            SplatoonPlugin.instance.logger.warning("Ceremony is enabled, but template world '${SplatoonSettings.ceremonyTemplateWorld}' couldn't be cloned. Skipping ceremony.")
+            return false
+        }
+
+        ceremonyWorldName = ceremonyWorld.name
+
+        // Make ceremony world safe
+        runCatching {
+            ceremonyWorld.pvp = false
+            ceremonyWorld.setGameRule(GameRule.DO_MOB_SPAWNING, false)
+            ceremonyWorld.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false)
+            ceremonyWorld.setGameRule(GameRule.DO_FIRE_TICK, false)
+            ceremonyWorld.setGameRule(GameRule.FALL_DAMAGE, false)
+            ceremonyWorld.setGameRule(GameRule.KEEP_INVENTORY, true)
+            ceremonyWorld.setGameRule(GameRule.NATURAL_REGENERATION, true)
+        }
+
+        val teamByPlace = placementByTeam.entries.associate { (team, place) -> place to team }
+
+        for (place in 1..4) {
+            val team = teamByPlace[place] ?: continue
+            val podium = podiums[place] ?: continue
+
+            val xMinBlock = minOf(podium.minX, podium.maxX)
+            val xMaxBlock = maxOf(podium.minX, podium.maxX)
+            val zMinBlock = minOf(podium.minZ, podium.maxZ)
+            val zMaxBlock = maxOf(podium.minZ, podium.maxZ)
+
+            val allowedMinX = xMinBlock.toDouble()
+            val allowedMaxX = (xMaxBlock + 1).toDouble()
+            val allowedMinZ = zMinBlock.toDouble()
+            val allowedMaxZ = (zMaxBlock + 1).toDouble()
+
+            val spawnLoc = podium.spawn?.let {
+                Location(ceremonyWorld, it.x, it.y, it.z, it.yaw ?: 0f, it.pitch ?: 0f)
+            } ?: Location(
+                ceremonyWorld,
+                xMinBlock + (xMaxBlock - xMinBlock + 1) / 2.0,
+                (maxOf(podium.minY, podium.maxY) + 1).toDouble(),
+                zMinBlock + (zMaxBlock - zMinBlock + 1) / 2.0,
+                0f,
+                0f
+            )
+
+            commands.filterValues { it == team }.keys.forEach { uuid ->
+                val player = Bukkit.getPlayer(uuid) ?: return@forEach
+                resetPlayerForCeremony(player)
+                player.teleport(spawnLoc)
+
+                GameManager.setCeremonyBounds(
+                    uuid,
+                    GameManager.CeremonyBounds(
+                        worldName = ceremonyWorld.name,
+                        minX = allowedMinX,
+                        maxX = allowedMaxX,
+                        minZ = allowedMinZ,
+                        maxZ = allowedMaxZ,
+                        safeLocation = spawnLoc
+                    )
+                )
+            }
+        }
+
+        val durationTicks = (SplatoonSettings.ceremonyDurationSeconds.coerceAtLeast(0) * 20).toLong()
+        ceremonyTask?.cancel(); ceremonyTask = null
+        ceremonyTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            endCeremonyAndFinalize()
+        }, durationTicks)
+
+        return true
+    }
+
+    private fun resetPlayerForCeremony(player: org.bukkit.entity.Player) {
+        player.inventory.clear()
+        player.activePotionEffects.forEach { eff -> player.removePotionEffect(eff.type) }
+        player.foodLevel = 20
+        player.saturation = 20f
+        player.fireTicks = 0
+        player.health = player.maxHealth
+        player.gameMode = GameMode.ADVENTURE
+        player.isGliding = false
+    }
+
+    private fun endCeremonyAndFinalize() {
+        val result = pendingMatchResult
+        if (result != null) {
+            recordMatchResultIfNeeded(result)
+        }
+        finishCleanupNow(force = false)
+    }
+
 
     private fun determineWinner(): Int {
         var maxScore = -1
@@ -870,6 +970,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return null
     }
 
+    private fun playSoundToAllPlayers(soundKey: String, volume: Float, pitch: Float) {
+        playSoundToAllPlayers(Sound.sound(Key.key(soundKey), Sound.Source.MASTER, volume, pitch))
+    }
+
     private fun playSoundToAllPlayers(sound: Sound) {
         commands.keys.forEach { playerId ->
             Bukkit.getPlayer(playerId)?.playSound(sound)
@@ -902,21 +1006,46 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         targets.forEach { it.showTitle(titleObj) }
     }
 
-    private fun showWinnerAnnouncement(winner: Int) {
-        showTitleToAllPlayers(
-            when (winner) {
-                0 -> Component.text("КРАСНЫЕ ПОБЕДИЛИ!", NamedTextColor.RED)
-                3 -> Component.text("СИНИЕ ПОБЕДИЛИ!", NamedTextColor.BLUE)
-                1 -> Component.text("ЖЕЛТЫЕ ПОБЕДИЛИ!", NamedTextColor.YELLOW)
-                2 -> Component.text("ЗЕЛЕНЫЕ ПОБЕДИЛИ!", NamedTextColor.GREEN)
-                else -> Component.text("НИЧЬЯ!", NamedTextColor.GOLD)
-            },
-            Component.text(
-                "Возвращение в лобби через ${SplatoonSettings.returnToLobbyDelaySeconds} секунд...",
-                NamedTextColor.GRAY
+    private fun sendTitleToAllPlayers(title: String, subtitle: String, fadeIn: Int, stay: Int, fadeOut: Int) {
+        val serializer = LegacyComponentSerializer.legacySection()
+        val titleObj = Title.title(
+            serializer.deserialize(title),
+            serializer.deserialize(subtitle),
+            Title.Times.times(
+                Duration.ofMillis(fadeIn.toLong() * 50L),
+                Duration.ofMillis(stay.toLong() * 50L),
+                Duration.ofMillis(fadeOut.toLong() * 50L)
             )
         )
+
+        val w = Bukkit.getWorld(this.worldName)
+        val targets = (w?.players ?: emptyList()).toMutableList()
+        commands.keys.forEach { id ->
+            val p = Bukkit.getPlayer(id)
+            if (p != null && !targets.contains(p)) targets.add(p)
+        }
+        targets.forEach { it.showTitle(titleObj) }
     }
+
+    private fun showWinnerAnnouncement(winner: Int, ceremonyStarted: Boolean) {
+        val teamName = teamLabel(winner)
+
+        val subtitle = if (ceremonyStarted) {
+            "§7Церемония: §f${SplatoonSettings.ceremonyDurationSeconds}§7с"
+        } else {
+            "§7Возвращение в лобби через §f${SplatoonSettings.returnToLobbyDelaySeconds}§7 сек..."
+        }
+
+        sendTitleToAllPlayers(
+            title = "§6Победа: $teamName",
+            subtitle = subtitle,
+            fadeIn = 10,
+            stay = 60,
+            fadeOut = 20
+        )
+        playSoundToAllPlayers("minecraft:entity.player.levelup", 1f, 1f)
+    }
+
 
     private fun startBoostTimer() {
         if (!SplatoonSettings.boostsEnabled) return
