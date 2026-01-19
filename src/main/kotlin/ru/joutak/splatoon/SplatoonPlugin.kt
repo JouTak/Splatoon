@@ -18,6 +18,7 @@ import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
+import ru.joutak.splatoon.listeners.SpectatorTeleportGuardListener
 import ru.joutak.splatoon.scripts.GameManager
 import java.io.File
 
@@ -81,6 +82,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunProtectionListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
+        Bukkit.getPluginManager().registerEvents(SpectatorTeleportGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(CeremonyMoveListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
 

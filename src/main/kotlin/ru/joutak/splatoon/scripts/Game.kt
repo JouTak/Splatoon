@@ -1206,10 +1206,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         clearScoreboards()
         createPlayerScoreboards()
-        createSpectatorScoreboards()
-        // Spectators may start spectating during COUNTDOWN.
-        // startMainTimer() used to wipe the scoreboard maps, and spectators stopped receiving updates.
-        updateAllPlayerScoreboards()
 
         removeBossBar()
         createBossBar()
@@ -1472,6 +1468,14 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 }
             }, 1L)
 
+            // Some servers enforce world gamemode with a short delay; apply once more.
+            Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+                if (spectators.contains(uuid)) {
+                    player.gameMode = org.bukkit.GameMode.SPECTATOR
+                    player.isCollidable = false
+                }
+            }, 20L)
+
             return
         }
 
@@ -1533,6 +1537,14 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 player.isCollidable = false
             }
         }, 1L)
+
+        // Some servers enforce world gamemode with a short delay; apply once more.
+        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            if (spectators.contains(uuid)) {
+                player.gameMode = org.bukkit.GameMode.SPECTATOR
+                player.isCollidable = false
+            }
+        }, 20L)
 
         // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
         val sb = Bukkit.getScoreboardManager().newScoreboard
@@ -1735,22 +1747,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             playerScoreboards[uuid] = sb
             playerObjectives[uuid] = obj
         }
-    }
-
-    private fun createSpectatorScoreboards() {
-        spectators.forEach { uuid ->
-            val player = Bukkit.getPlayer(uuid) ?: return@forEach
-            val sb = Bukkit.getScoreboardManager().newScoreboard
-            val obj = sb.registerNewObjective(
-                "gametimer",
-                org.bukkit.scoreboard.Criteria.DUMMY,
-                Component.text("Splatoon", NamedTextColor.GOLD)
-            )
-            obj.displaySlot = DisplaySlot.SIDEBAR
-            player.scoreboard = sb
-            playerScoreboards[uuid] = sb
-            playerObjectives[uuid] = obj
-        }
+        updateAllPlayerScoreboards()
     }
 
     private fun updateSpawnNameTags() {
