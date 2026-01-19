@@ -30,11 +30,14 @@ import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
+import ru.joutak.minigames.config.ConfigKeys
 import ru.joutak.minigames.managers.MatchmakingManager
+import ru.joutak.minigames.results.model.MatchContext
 import ru.joutak.minigames.results.model.MatchResult
 import ru.joutak.minigames.results.model.Metric
 import ru.joutak.minigames.results.model.PlayerResult
 import ru.joutak.minigames.results.model.TeamResult
+import ru.joutak.minigames.tournament.TournamentManager
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SpawnPoint
 import ru.joutak.splatoon.config.SplatoonSettings
@@ -61,6 +64,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
     fun setTournamentTeamKey(teamIndex: Int, teamKey: String?) {
         tournamentTeamKeysByIndex[teamIndex] = teamKey
+    }
+
+    private fun getTeamKey(teamId: Int): String {
+        val key = tournamentTeamKeysByIndex[teamId]
+        return if (!key.isNullOrBlank()) key else "team_${teamId}"
     }
 
     val paintedCommand: MutableMap<Int, Int> = mutableMapOf(0 to 0, 1 to 0, 2 to 0, 3 to 0)
@@ -332,6 +340,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             if (p != null) playerNames[uuid] = p.name
         }
 
+        // Snapshot tournament team_key for each teamId (for results DB metrics).
+        snapshotTournamentTeamKeys()
+
         commands.keys.forEach { uuid ->
             inkHp[uuid] = maxInkHp
             inkRegenCarry.remove(uuid)
@@ -346,6 +357,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         }
 
         startCountdown(worldName)
+    }
+
+    private fun snapshotTournamentTeamKeys() {
+        val tournamentEnabled = runCatching { MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_ENABLED) }
+            .getOrDefault(false)
+        if (!tournamentEnabled) return
+
+        for ((uuid, teamId) in playerTeamsSnapshot) {
+            if (!tournamentTeamKeysByIndex[teamId].isNullOrBlank()) continue
+            val key = TournamentManager.getCachedTeamKey(uuid) ?: continue
+            if (key.isBlank()) continue
+            tournamentTeamKeysByIndex[teamId] = key
+        }
     }
 
     fun markPlayerLeft(uuid: UUID) {
@@ -482,25 +506,54 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return out
     }
 
+    private fun normalizePlacementsForTeams(teamIds: List<Int>, raw: Map<Int, Int>): Map<Int, Int> {
+        if (teamIds.isEmpty()) return emptyMap()
+
+        val ordered = teamIds.sortedWith(
+            compareBy<Int> {
+                raw[it]?.takeIf { p -> p in 1..teamIds.size } ?: Int.MAX_VALUE
+            }.thenBy { it }
+        )
+
+        val out = mutableMapOf<Int, Int>()
+        ordered.forEachIndexed { idx, teamId ->
+            out[teamId] = idx + 1
+        }
+        return out
+    }
+
+    private fun resolveMatchContext(): MatchContext? {
+        val eventId = runCatching { MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_EVENT_ID).trim() }
+            .getOrDefault("")
+        val stage = runCatching { MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_STAGE).trim() }
+            .getOrDefault("")
+
+        if (eventId.isBlank() || stage.isBlank()) return null
+        return MatchContext(eventId = eventId, stage = stage)
+    }
+
     private fun buildMatchResult(winnerTeam: Int, placementByTeam: Map<Int, Int>): MatchResult {
         val now = System.currentTimeMillis()
 
-        // Tournament contract: always report 4 teams (0..3) and all participants from the start snapshot.
-        val placements = normalizePlacementsAllTeams(placementByTeam)
+        // IMPORTANT: include only non-empty teams in MatchResult.teams.
+        // This prevents Elo/recalc from treating empty teams as real opponents.
+        val participatingTeams = playerTeamsSnapshot.values.toSet().ifEmpty { activeTeams.toSet() }.toList().sorted()
+        val placements = normalizePlacementsForTeams(participatingTeams, placementByTeam)
 
-        val teamResults = (0..3).map { teamId ->
+        val teamResults = participatingTeams.map { teamId ->
             val percent = computeTeamScorePercent(teamId)
             val killsTotal = playerTeamsSnapshot
                 .filterValues { it == teamId }
                 .keys
                 .sumOf { kills[it] ?: 0 }
-            val place = placements[teamId] ?: 4
+            val place = placements[teamId] ?: (placements.values.maxOrNull() ?: 1)
             TeamResult(
                 teamId = teamId,
                 placement = place,
                 isWinner = place == 1,
                 score = percent,
                 metrics = listOf(
+                    Metric.text("team_key", getTeamKey(teamId)),
                     Metric.real("paint_percent", percent),
                     Metric.int("kills", killsTotal.toLong()),
                 ),
@@ -532,6 +585,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             mapKey = arenaId,
             startedAtMs = startedAtMs,
             endedAtMs = now,
+            context = resolveMatchContext(),
             teams = teamResults,
             players = playerResults,
         )
@@ -1104,7 +1158,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val teamName = teamLabel(winner)
 
         val subtitle = if (ceremonyStarted) {
-            "§7Порадуемся за победителей!§7"
+            "§7Порадуемся за победителей!§7с"
         } else {
             "§7Возвращение в лобби через §f${SplatoonSettings.returnToLobbyDelaySeconds}§7 сек..."
         }
