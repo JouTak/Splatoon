@@ -1206,6 +1206,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         clearScoreboards()
         createPlayerScoreboards()
+        createSpectatorScoreboards()
+        // Spectators may start spectating during COUNTDOWN.
+        // startMainTimer() used to wipe the scoreboard maps, and spectators stopped receiving updates.
+        updateAllPlayerScoreboards()
 
         removeBossBar()
         createBossBar()
@@ -1731,7 +1735,22 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             playerScoreboards[uuid] = sb
             playerObjectives[uuid] = obj
         }
-        updateAllPlayerScoreboards()
+    }
+
+    private fun createSpectatorScoreboards() {
+        spectators.forEach { uuid ->
+            val player = Bukkit.getPlayer(uuid) ?: return@forEach
+            val sb = Bukkit.getScoreboardManager().newScoreboard
+            val obj = sb.registerNewObjective(
+                "gametimer",
+                org.bukkit.scoreboard.Criteria.DUMMY,
+                Component.text("Splatoon", NamedTextColor.GOLD)
+            )
+            obj.displaySlot = DisplaySlot.SIDEBAR
+            player.scoreboard = sb
+            playerScoreboards[uuid] = sb
+            playerObjectives[uuid] = obj
+        }
     }
 
     private fun updateSpawnNameTags() {
