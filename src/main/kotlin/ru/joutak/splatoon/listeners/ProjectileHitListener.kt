@@ -49,8 +49,8 @@ class ProjectileHitListener : Listener {
         val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt() ?: shooterTeam
         val isBomb = entity.hasMetadata("bombKey")
         val radius = if (isBomb) SplatoonSettings.bombPaintRadius else SplatoonSettings.gunPaintRadius
-        // Bombs are a "one-shot" tool. We don't do an extra bigger paint burst on kill for them.
-        val killPaintRadius = if (isBomb) radius else SplatoonSettings.gunKillPaintRadius
+        // On kill we do an extra burst. For bombs it should feel like the player "exploded" into paint.
+        val killPaintRadius = if (isBomb) radius + 1.5 else SplatoonSettings.gunKillPaintRadius
         val damagePerHit = if (isBomb) SplatoonSettings.inkMaxHp else 1
 
         val hitEntity = event.hitEntity
@@ -98,10 +98,7 @@ class ProjectileHitListener : Listener {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                // Extra paint burst on kill is only for gun shots.
-                if (!isBomb) {
-                    explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
-                }
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
             return
         }
@@ -148,10 +145,7 @@ class ProjectileHitListener : Listener {
                 game.kills[shooter.uniqueId] = (game.kills[shooter.uniqueId] ?: 0) + 1
                 val deathLoc = victim.location.clone()
                 splatAndRespawn(victim, game)
-                // Extra paint burst on kill is only for gun shots.
-                if (!isBomb) {
-                    explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
-                }
+                explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
         }
     }
