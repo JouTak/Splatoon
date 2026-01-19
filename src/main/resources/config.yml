@@ -26,6 +26,10 @@ ceremony:
   enabled: false
   # Template world name for ceremony (will be cloned uniquely per match)
   template-name: sp_ceremony
+
+  # Where spectators will be teleported during ceremony (no movement limits).
+  # Format: [x, y, z, yaw, pitch]
+  spectator-spawn: [0.5, 80.0, 0.5, 0, 0]
   # How long players stay on the podiums before returning to lobby
   duration-seconds: 8
   # During ceremony players receive a "toy" gun and bomb with unlimited use.

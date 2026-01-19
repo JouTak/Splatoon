@@ -68,6 +68,10 @@ object SplatoonSettings {
     var ceremonyWindCharges: Int = 0
         private set
 
+    // Where to teleport spectators during ceremony (they are NOT bounded to podium squares)
+    var ceremonySpectatorSpawn: SpawnPoint? = null
+        private set
+
     // 4 podium squares (2x2 blocks each by default). Keys: place 1..4.
     val ceremonyPodiumsByPlace: MutableMap<Int, CeremonyPodium> = mutableMapOf()
 
@@ -220,6 +224,12 @@ object SplatoonSettings {
         ceremonyWindCharges = max(
             0,
             config.getInt("ceremony.wind-charges", config.getInt("ceremony.wind_charges", 0))
+        )
+
+        ceremonySpectatorSpawn = parseSpawnPoint(
+            config.getList("ceremony.spectator-spawn")
+                ?: config.getList("ceremony.spectator_spawn")
+                ?: config.getList("ceremony.spectatorSpawn")
         )
 
         ceremonyPodiumsByPlace.clear()

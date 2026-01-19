@@ -188,6 +188,8 @@ object GameManager {
         return gamesByWorld[world]
     }
 
+    fun getSpectatingWorld(playerId: UUID): String? = spectatingWorldByPlayer[playerId]
+
     fun setSpectating(playerId: UUID, worldName: String) {
         spectatingWorldByPlayer[playerId] = worldName
     }

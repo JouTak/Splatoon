@@ -392,8 +392,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         if (ended) return
         ended = true
 
-        // Spectators must not remain in the match world during ceremony/cleanup.
-        forceRemoveAllSpectators(forceLobby = true)
+        // Keep spectators for the ceremony (they will be teleported into ceremony world).
 
         // Stop match tasks
         countdownLeft = null
@@ -420,6 +419,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             return
         }
 
+        // No ceremony configured / failed to start -> do not keep spectators in the match world.
+        forceRemoveAllSpectators(forceLobby = true)
+
         // No ceremony configured / failed to start -> record right away and return to lobby after delay
         pendingMatchResult?.let { recordMatchResultIfNeeded(it) }
 
@@ -432,7 +434,10 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
 
     private fun finishCleanupNow(force: Boolean) {
-        if (cleanupStarted) return
+            // Always restore/teleport spectators before any world cleanup happens.
+            forceRemoveAllSpectators(forceLobby = true)
+
+            if (cleanupStarted) return
         cleanupStarted = true
 
         endingCleanupTask?.cancel(); endingCleanupTask = null
@@ -675,6 +680,27 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 )
             }
         }
+        // Teleport spectators to a separate point (no movement limits).
+        val specSpawn = SplatoonSettings.ceremonySpectatorSpawn?.let { sp ->
+            Location(ceremonyWorld, sp.x, sp.y, sp.z, sp.yaw ?: 0f, sp.pitch ?: 0f)
+        } ?: ceremonyWorld.spawnLocation.clone().add(0.5, 0.0, 0.5).apply {
+            if (y < 75.0) y = 75.0
+        }
+
+        spectators.forEach { uuid ->
+            val p = Bukkit.getPlayer(uuid) ?: return@forEach
+            p.teleport(specSpawn)
+            p.gameMode = GameMode.SPECTATOR
+            p.isCollidable = false
+            GameManager.setSpectating(uuid, ceremonyWorld.name)
+            Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+                if (spectators.contains(uuid)) {
+                    p.gameMode = GameMode.SPECTATOR
+                    p.isCollidable = false
+                }
+            }, 1L)
+        }
+
 
         val durationTicks = (SplatoonSettings.ceremonyDurationSeconds.coerceAtLeast(0) * 20).toLong()
         ceremonyTask?.cancel(); ceremonyTask = null
@@ -1468,14 +1494,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 }
             }, 1L)
 
-            // Some servers enforce world gamemode with a short delay; apply once more.
-            Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-                if (spectators.contains(uuid)) {
-                    player.gameMode = org.bukkit.GameMode.SPECTATOR
-                    player.isCollidable = false
-                }
-            }, 20L)
-
             return
         }
 
@@ -1537,14 +1555,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 player.isCollidable = false
             }
         }, 1L)
-
-        // Some servers enforce world gamemode with a short delay; apply once more.
-        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
-            if (spectators.contains(uuid)) {
-                player.gameMode = org.bukkit.GameMode.SPECTATOR
-                player.isCollidable = false
-            }
-        }, 20L)
 
         // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
         val sb = Bukkit.getScoreboardManager().newScoreboard
