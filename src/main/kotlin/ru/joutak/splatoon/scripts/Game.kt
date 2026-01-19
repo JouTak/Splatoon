@@ -30,10 +30,8 @@ import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
-import ru.joutak.minigames.config.ConfigKeys
 import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.minigames.results.model.MatchResult
-import ru.joutak.minigames.results.model.MatchContext
 import ru.joutak.minigames.results.model.Metric
 import ru.joutak.minigames.results.model.PlayerResult
 import ru.joutak.minigames.results.model.TeamResult
@@ -321,6 +319,9 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     fun startGame(worldName: String) {
         activeTeams = commands.values.toSet().sorted()
 
+        // Countdown runs before we create a new scoreboard objective. Clear any stale sidebar from previous rounds now.
+        val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
+
         // Snapshot players for results (including possible leavers).
         val joinAt = startedAtMs
         commands.forEach { (uuid, team) ->
@@ -336,6 +337,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             inkRegenCarry.remove(uuid)
             inkLastDamageAt.remove(uuid)
             val player = Bukkit.getPlayer(uuid) ?: return@forEach
+            player.scoreboard = emptyScoreboard
             player.inventory.clear()
             ensureInkHealth(player)
             syncHealthBar(player)
@@ -420,9 +422,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
         // Teleport participants to lobby
         val lobbyLoc = lobbyWorld.spawnLocation
+        val emptyScoreboard = Bukkit.getScoreboardManager().newScoreboard
         commands.keys.forEach { uuid ->
             GameManager.clearCeremonyBounds(uuid)
             val player = Bukkit.getPlayer(uuid) ?: return@forEach
+            player.scoreboard = emptyScoreboard
             player.inventory.clear()
             player.activePotionEffects.forEach { eff -> player.removePotionEffect(eff.type) }
             player.foodLevel = 20
@@ -481,12 +485,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private fun buildMatchResult(winnerTeam: Int, placementByTeam: Map<Int, Int>): MatchResult {
         val now = System.currentTimeMillis()
 
-        val ctx = if (MiniGamesAPI.isTournamentEnabled()) {
-            val eventId = MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_EVENT_ID)
-            val stage = MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_STAGE)
-            if (eventId.isNotBlank() && stage.isNotBlank()) MatchContext(eventId = eventId, stage = stage) else null
-        } else null
-
         // Tournament contract: always report 4 teams (0..3) and all participants from the start snapshot.
         val placements = normalizePlacementsAllTeams(placementByTeam)
 
@@ -497,20 +495,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 .keys
                 .sumOf { kills[it] ?: 0 }
             val place = placements[teamId] ?: 4
-            val metrics = mutableListOf(
-                Metric.real("paint_percent", percent),
-                Metric.int("kills", killsTotal.toLong()),
-            )
-            val teamKey = tournamentTeamKeysByIndex[teamId]
-            if (!teamKey.isNullOrBlank()) {
-                metrics.add(Metric.text("team_key", teamKey))
-            }
             TeamResult(
                 teamId = teamId,
                 placement = place,
                 isWinner = place == 1,
                 score = percent,
-                metrics = metrics,
+                metrics = listOf(
+                    Metric.real("paint_percent", percent),
+                    Metric.int("kills", killsTotal.toLong()),
+                ),
             )
         }
 
@@ -539,7 +532,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             mapKey = arenaId,
             startedAtMs = startedAtMs,
             endedAtMs = now,
-            context = ctx,
             teams = teamResults,
             players = playerResults,
         )
@@ -1112,7 +1104,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val teamName = teamLabel(winner)
 
         val subtitle = if (ceremonyStarted) {
-            "§7Порадуемся за победителей!§7с"
+            "§7Порадуемся за победителей!§7"
         } else {
             "§7Возвращение в лобби через §f${SplatoonSettings.returnToLobbyDelaySeconds}§7 сек..."
         }
