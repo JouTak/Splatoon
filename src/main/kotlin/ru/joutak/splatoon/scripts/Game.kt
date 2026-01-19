@@ -30,8 +30,10 @@ import org.bukkit.scoreboard.DisplaySlot
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
+import ru.joutak.minigames.config.ConfigKeys
 import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.minigames.results.model.MatchResult
+import ru.joutak.minigames.results.model.MatchContext
 import ru.joutak.minigames.results.model.Metric
 import ru.joutak.minigames.results.model.PlayerResult
 import ru.joutak.minigames.results.model.TeamResult
@@ -479,6 +481,12 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private fun buildMatchResult(winnerTeam: Int, placementByTeam: Map<Int, Int>): MatchResult {
         val now = System.currentTimeMillis()
 
+        val ctx = if (MiniGamesAPI.isTournamentEnabled()) {
+            val eventId = MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_EVENT_ID)
+            val stage = MiniGamesAPI.config.get(ConfigKeys.TOURNAMENT_STAGE)
+            if (eventId.isNotBlank() && stage.isNotBlank()) MatchContext(eventId = eventId, stage = stage) else null
+        } else null
+
         // Tournament contract: always report 4 teams (0..3) and all participants from the start snapshot.
         val placements = normalizePlacementsAllTeams(placementByTeam)
 
@@ -489,15 +497,20 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
                 .keys
                 .sumOf { kills[it] ?: 0 }
             val place = placements[teamId] ?: 4
+            val metrics = mutableListOf(
+                Metric.real("paint_percent", percent),
+                Metric.int("kills", killsTotal.toLong()),
+            )
+            val teamKey = tournamentTeamKeysByIndex[teamId]
+            if (!teamKey.isNullOrBlank()) {
+                metrics.add(Metric.text("team_key", teamKey))
+            }
             TeamResult(
                 teamId = teamId,
                 placement = place,
                 isWinner = place == 1,
                 score = percent,
-                metrics = listOf(
-                    Metric.real("paint_percent", percent),
-                    Metric.int("kills", killsTotal.toLong()),
-                ),
+                metrics = metrics,
             )
         }
 
@@ -526,6 +539,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             mapKey = arenaId,
             startedAtMs = startedAtMs,
             endedAtMs = now,
+            context = ctx,
             teams = teamResults,
             players = playerResults,
         )
