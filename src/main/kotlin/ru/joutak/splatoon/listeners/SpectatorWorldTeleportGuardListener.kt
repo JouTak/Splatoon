@@ -34,7 +34,7 @@ class SpectatorWorldTeleportGuardListener : Listener {
         if (inGame == null) return
 
         val toWorld = event.to?.world ?: return
-        val expectedWorldName = inGame.worldName
+        val expectedWorldName = inGame.getSpectatorExpectedWorldName()
         if (toWorld.name == expectedWorldName) return
 
         event.isCancelled = true
@@ -58,7 +58,7 @@ class SpectatorWorldTeleportGuardListener : Listener {
         if (player.gameMode != GameMode.SPECTATOR) return
 
         val spectatingGame = GameManager.getSpectatingGame(player) ?: return
-        val expectedWorldName = spectatingGame.worldName
+        val expectedWorldName = spectatingGame.getSpectatorExpectedWorldName()
         if (player.world.name == expectedWorldName) return
 
         warnOncePerSecond(player.uniqueId)

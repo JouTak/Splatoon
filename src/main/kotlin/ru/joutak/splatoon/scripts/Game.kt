@@ -100,6 +100,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private var ceremonyWorldName: String? = null
     private var pendingMatchResult: MatchResult? = null
 
+    fun getSpectatorExpectedWorldName(): String = ceremonyWorldName ?: worldName
+
     
     private var countdownLeft: Int? = null
 
@@ -692,7 +694,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             p.teleport(specSpawn)
             p.gameMode = GameMode.SPECTATOR
             p.isCollidable = false
-            GameManager.setSpectating(uuid, ceremonyWorld.name)
             Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
                 if (spectators.contains(uuid)) {
                     p.gameMode = GameMode.SPECTATOR
