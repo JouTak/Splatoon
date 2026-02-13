@@ -1,6 +1,5 @@
 package ru.joutak.splatoon.scripts
 
-import io.papermc.paper.datacomponent.DataComponentTypes
 import net.kyori.adventure.key.Key
 import net.kyori.adventure.sound.Sound
 import net.kyori.adventure.text.Component
@@ -1073,57 +1072,6 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         }
     }
 
-    private fun ensureBowAmmo(player: Player) {
-        val ammoKey = NamespacedKey(SplatoonPlugin.instance, "splatAmmo")
-        val inv = player.inventory
-
-        // Если уже есть наш патрон — просто обновим цвет.
-        var ammoSlot = -1
-        for (i in 0 until inv.size) {
-            val it = inv.getItem(i) ?: continue
-            if (it.type == Material.AIR || !it.hasItemMeta()) continue
-            if (it.itemMeta.persistentDataContainer.has(ammoKey, PersistentDataType.BOOLEAN)) {
-                ammoSlot = i
-                break
-            }
-        }
-
-        val baseTeam = commands[player.uniqueId] ?: 0
-        val paintTeam = getAmmoTeam(player.uniqueId) ?: baseTeam
-        val colorName = when (paintTeam) {
-            0 -> "Red"
-            3 -> "Blue"
-            2 -> "Green"
-            1 -> "Yellow"
-            else -> "Red"
-        }
-
-        val item = if (ammoSlot >= 0) {
-            inv.getItem(ammoSlot) ?: return
-        } else {
-            val created = ItemStack(Material.ARROW, 1)
-            val m = created.itemMeta
-            m.persistentDataContainer.set(ammoKey, PersistentDataType.BOOLEAN, true)
-            created.itemMeta = m
-
-            val slot = firstEmptyMainInvSlot(inv) ?: 35
-            inv.setItem(slot, created)
-            ammoSlot = slot
-            created
-        }
-
-        item.setData(DataComponentTypes.CUSTOM_NAME, Component.text(colorName))
-        inv.setItem(ammoSlot, item)
-    }
-
-    private fun firstEmptyMainInvSlot(inv: org.bukkit.inventory.PlayerInventory): Int? {
-        for (i in 9..35) {
-            val it = inv.getItem(i)
-            if (it == null || it.type == Material.AIR) return i
-        }
-        return null
-    }
-
     private fun playSoundToAllPlayers(soundKey: String, volume: Float, pitch: Float) {
         playSoundToAllPlayers(Sound.sound(Key.key(soundKey), Sound.Source.MASTER, volume, pitch))
     }
@@ -1185,7 +1133,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val teamName = teamLabel(winner)
 
         val subtitle = if (ceremonyStarted) {
-            "§7Порадуемся за победителей!§7с"
+            "§7Порадуемся за победителей!"
         } else {
             "§7Возвращение в лобби через §f${SplatoonSettings.returnToLobbyDelaySeconds}§7 сек..."
         }

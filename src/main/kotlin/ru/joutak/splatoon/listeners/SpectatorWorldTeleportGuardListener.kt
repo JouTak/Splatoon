@@ -13,7 +13,6 @@ import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
 
 /**
- * Same as [SpectatorTeleportGuardListener], but kept under this name because SplatoonPlugin registers it.
  * Prevents Splatoon spectators from using vanilla SPECTATOR hotbar teleport to leave the match world.
  */
 class SpectatorWorldTeleportGuardListener : Listener {
