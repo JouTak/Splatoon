@@ -1,50 +1,98 @@
 package ru.joutak.splatoon.listeners
 
 import org.bukkit.Bukkit
-import org.bukkit.Location
-import org.bukkit.Material
-import org.bukkit.block.BlockFace
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerToggleSneakEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
+import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
 
 class PlayerToggleSneakListener : Listener {
     companion object {
-        val tasks = mutableMapOf<UUID, Int>()
+        val tasks: MutableMap<UUID, Int> = mutableMapOf()
     }
 
     @EventHandler
-    fun playerToggleSneakEvent(event: PlayerToggleSneakEvent) {
+    fun onSneakToggle(event: PlayerToggleSneakEvent) {
         val player = event.player
-        if (tasks.containsKey(player.uniqueId)) {
-            Bukkit.getScheduler().cancelTask(tasks[player.uniqueId]!!)
-            tasks.remove(player.uniqueId)
+        val uuid = player.uniqueId
+
+        val gameNow = GameManager.playerGame[uuid]
+        if (gameNow == null) {
+            val existing = tasks.remove(uuid)
+            if (existing != null) Bukkit.getScheduler().cancelTask(existing)
             return
         }
 
-        tasks[player.uniqueId] =
-            Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
-            for (x in -3..3) {
-                for (z in -3..3) {
-                    if (Location(
-                            player.world,
-                            player.location.x + x.toDouble() / 10,
-                            player.location.y,
-                            player.location.z + z.toDouble() / 10
-                        ).block.getRelative(
-                            BlockFace.DOWN
-                        ).type == Material.GREEN_CONCRETE
-                    ) {
-                        player.addPotionEffect(PotionEffect(PotionEffectType.SPEED, 2, 18))
-                        player.addPotionEffect(PotionEffect(PotionEffectType.INVISIBILITY, 2, 1))
+        if (!SplatoonSettings.sneakOnInkEnabled) {
+            val existing = tasks.remove(uuid)
+            if (existing != null) Bukkit.getScheduler().cancelTask(existing)
+            return
+        }
+
+        if (tasks.containsKey(uuid)) {
+            val taskId = tasks.remove(uuid)
+            if (taskId != null) Bukkit.getScheduler().cancelTask(taskId)
+            return
+        }
+
+        val task = Bukkit.getScheduler().runTaskTimer(SplatoonPlugin.instance, Runnable {
+            val game = GameManager.playerGame[uuid] ?: run {
+                val existing = tasks.remove(uuid)
+                if (existing != null) Bukkit.getScheduler().cancelTask(existing)
+                return@Runnable
+            }
+
+            val team = game.commands[uuid] ?: return@Runnable
+            val teamMaterial = game.commandColors[team] ?: return@Runnable
+
+            val loc = player.location
+            val step = SplatoonSettings.sneakOnInkScanStepBlocks
+            val steps = SplatoonSettings.sneakOnInkScanSteps
+
+            var onInk = false
+            for (dx in -steps..steps) {
+                for (dz in -steps..steps) {
+                    val check = loc.clone().add(dx.toDouble() * step, -1.0, dz.toDouble() * step)
+                    if (check.block.type == teamMaterial) {
+                        onInk = true
+                        break
                     }
                 }
+                if (onInk) break
             }
-        }, 0L, 1).taskId
+
+            if (onInk) {
+                player.addPotionEffect(
+                    PotionEffect(
+                        PotionEffectType.SPEED,
+                        SplatoonSettings.sneakOnInkEffectDurationTicks,
+                        SplatoonSettings.sneakOnInkSpeedAmplifier,
+                        false,
+                        false,
+                        true
+                    )
+                )
+
+                if (SplatoonSettings.sneakOnInkInvisibilityAmplifier >= 0) {
+                    player.addPotionEffect(
+                        PotionEffect(
+                            PotionEffectType.INVISIBILITY,
+                            SplatoonSettings.sneakOnInkEffectDurationTicks,
+                            SplatoonSettings.sneakOnInkInvisibilityAmplifier,
+                            false,
+                            false,
+                            true
+                        )
+                    )
+                }
+            }
+        }, 0L, SplatoonSettings.sneakOnInkTaskPeriodTicks)
+
+        tasks[uuid] = task.taskId
     }
 }
-

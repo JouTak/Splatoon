@@ -1,0 +1,121 @@
+package ru.joutak.splatoon.listeners
+
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.title.Title
+import org.bukkit.FluidCollisionMode
+import org.bukkit.Material
+import org.bukkit.NamespacedKey
+import org.bukkit.entity.Player
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerAnimationEvent
+import org.bukkit.persistence.PersistentDataType
+import org.bukkit.plugin.Plugin
+import ru.joutak.splatoon.scripts.GameManager
+import ru.joutak.splatoon.config.SplatoonSettings
+import java.time.Duration
+import java.util.UUID
+
+class BacillusHitListener(private val plugin: Plugin) : Listener {
+    private val useCooldown: MutableMap<UUID, Long> = mutableMapOf()
+
+    @EventHandler
+    fun onSwing(event: PlayerAnimationEvent) {
+        val player = event.player
+        val game = GameManager.playerGame[player.uniqueId] ?: return
+
+        val hand = findBacillus(player) ?: return
+
+        val now = System.currentTimeMillis()
+        val last = useCooldown[player.uniqueId]
+        if (last != null && now - last < SplatoonSettings.bacillusCooldownMs) return
+
+        val target = raytracePlayer(player, SplatoonSettings.bacillusRangeBlocks) ?: return
+        if (GameManager.playerGame[target.uniqueId] != game) return
+
+        val attackerTeam = game.commands[player.uniqueId] ?: return
+        val victimTeam = game.commands[target.uniqueId] ?: return
+        if (attackerTeam == victimTeam) return
+
+        if (game.isSpawnSafe(target)) return
+
+        useCooldown[player.uniqueId] = now
+
+        game.applyAmmoOverride(target.uniqueId, attackerTeam, SplatoonSettings.bacillusDurationSeconds * 1000L)
+        showBacillusTitles(player, target)
+
+        consumeBacillus(player, hand)
+    }
+
+    private fun showBacillusTitles(attacker: Player, victim: Player) {
+        val t = Title.title(
+            Component.text("☣ Бацилла!", NamedTextColor.LIGHT_PURPLE),
+            Component.text("Вы заражены на ${SplatoonSettings.bacillusDurationSeconds} секунд", NamedTextColor.GRAY),
+            Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(1400), Duration.ofMillis(150))
+        )
+        victim.showTitle(t)
+
+        val t2 = Title.title(
+            Component.text("☣ Bacillus", NamedTextColor.LIGHT_PURPLE),
+            Component.text("Цель заражена!", NamedTextColor.GRAY),
+            Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(900), Duration.ofMillis(150))
+        )
+        attacker.showTitle(t2)
+    }
+
+    private fun raytracePlayer(player: Player, maxDistance: Double): Player? {
+        val start = player.eyeLocation
+        val dir = start.direction
+
+        // Важно: rayTraceEntities игнорирует блоки, поэтому бацилла могла "доставать" сквозь стены.
+        // rayTrace учитывает и блоки, и сущности, возвращая ближайшее пересечение.
+        val res = player.world.rayTrace(
+            start,
+            dir,
+            maxDistance,
+            FluidCollisionMode.NEVER,
+            true, // игнорируем "passable" (трава и т.п.), но упираемся в плотные стены
+            0.3
+        ) { e -> e is Player && e.uniqueId != player.uniqueId } ?: return null
+
+        return res.hitEntity as? Player
+    }
+
+    private fun findBacillus(player: Player): BacillusHand? {
+        val key = NamespacedKey(plugin, "Bacillus")
+
+        val off = player.inventory.itemInOffHand
+        if (off.type == Material.AMETHYST_SHARD && off.hasItemMeta() &&
+            off.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
+        ) return BacillusHand.OFF
+
+        val main = player.inventory.itemInMainHand
+        if (main.type == Material.AMETHYST_SHARD && main.hasItemMeta() &&
+            main.itemMeta.persistentDataContainer.has(key, PersistentDataType.BOOLEAN)
+        ) return BacillusHand.MAIN
+
+        return null
+    }
+
+    private fun consumeBacillus(player: Player, hand: BacillusHand) {
+        if (hand == BacillusHand.MAIN) {
+            val item = player.inventory.itemInMainHand
+            if (item.amount <= 1) player.inventory.setItemInMainHand(null)
+            else {
+                item.amount = item.amount - 1
+                player.inventory.setItemInMainHand(item)
+            }
+            return
+        }
+
+        val item = player.inventory.itemInOffHand
+        if (item.amount <= 1) player.inventory.setItemInOffHand(null)
+        else {
+            item.amount = item.amount - 1
+            player.inventory.setItemInOffHand(item)
+        }
+    }
+
+    private enum class BacillusHand { MAIN, OFF }
+}

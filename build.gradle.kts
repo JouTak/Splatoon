@@ -11,25 +11,34 @@ plugins {
 }
 
 repositories {
+    maven("https://maven-central.storage-download.googleapis.com/maven2/") {
+        name = "maven-central-mirror"
+    }
+    maven("https://repo1.maven.org/maven2/") {
+        name = "maven-central-repo1"
+    }
     mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/") {
-        name = "papermc-repo"
-    }
-    maven("https://oss.sonatype.org/content/groups/public/") {
-        name = "sonatype"
-    }
+
+    maven("https://repo.papermc.io/repository/maven-public/") { name = "papermc-repo" }
+    maven("https://oss.sonatype.org/content/groups/public/") { name = "sonatype" }
+    maven("https://repo.onarandombox.com/content/groups/public/")
+    maven("https://jitpack.io") { name = "jitpack" }
+    maven("https://maven.joutak.ru/snapshots")
 }
 
 dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
+    compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
+    implementation("ru.joutak:minigamesapi:3.4.2-123")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.7")
 }
 
 kotlin {
     jvmToolchain(
         libs.versions.jdk
             .get()
-            .toInt(),
+            .toInt()
     )
 }
 
@@ -62,11 +71,12 @@ tasks.processResources {
             "VERSION" to project.version,
             "MINECRAFT_VERSION" to minecraftVersion,
             "KOTLIN_VERSION" to libs.versions.kotlin.get(),
-            "WEBSITE" to website,
+            "WEBSITE" to website
         )
 
     inputs.properties(props)
     filteringCharset = "UTF-8"
+
     filesMatching("plugin.yml") {
         expand(props)
     }
@@ -78,7 +88,7 @@ tasks.shadowJar {
     if (System.getenv("TEST_PLUGIN_BUILD") != null) {
         val serverPath = System.getenv("SERVER_PATH")
         if (serverPath != null) {
-            destinationDirectory.set(file("$serverPath\\plugins"))
+            destinationDirectory.set(file("$serverPath/plugins"))
         } else {
             logger.warn("SERVER_PATH property is not set!")
         }

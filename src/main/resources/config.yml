@@ -1,0 +1,127 @@
+# Splatoon plugin config
+
+lobby:
+  world: lobby
+
+game:
+  # Match duration in seconds
+  duration_seconds: 300
+
+  # Delay before sending everyone back to the lobby after match end
+  return_to_lobby_delay_seconds: 5
+
+  # HUD update intervals
+  scoreboard_update_ticks: 10
+  actionbar_update_ticks: 5
+
+  # Fallback template world name (used only when arena.world is missing)
+  default_template_world: sp_arena_1
+
+  # How many parallel matchmaking instances to create per arena template.
+  # Each instance clones the same template world into <template>_N, so you do NOT need to copy maps.
+  max_parallel_games_per_arena: 1
+
+# Ceremony stage (post-game).
+ceremony:
+  enabled: false
+  # Template world name for ceremony (will be cloned uniquely per match)
+  template-name: sp_ceremony
+
+  # Where spectators will be teleported during ceremony (no movement limits).
+  # Format: [x, y, z, yaw, pitch]
+  spectator-spawn: [0.5, 80.0, 0.5, 0, 0]
+  # How long players stay on the podiums before returning to lobby
+  duration-seconds: 8
+  # During ceremony players receive a "toy" gun and bomb with unlimited use.
+  # Podiums for places 1..4 (order matters). Format: [x1, y, z1, x2, z2, yaw]
+  # x1/z1 and x2/z2 form a square/rectangle area (inclusive) where players are allowed to move.
+  podiums:
+    - [0, 64, 0, 1, 1, 0]
+    - [3, 64, 0, 4, 1, 0]
+    - [0, 64, 3, 1, 4, 0]
+    - [3, 64, 3, 4, 4, 0]
+ink:
+  # How many hits a player can take (Ink HP)
+  max_hp: 3
+
+  regen:
+    # Ink HP regeneration while player is in squid mode (INVISIBILITY)
+    enabled: true
+    # 1.0 = +1 Ink HP per second
+    rate_per_second: 0.5
+    delay_after_damage_seconds: 2
+
+spawn_protection:
+  # Additional protection time after respawn.
+  # If the player doesn't move away from the spawn block, protection won't end by time.
+  # Using the gun (holding RMB) immediately disables protection.
+  after_respawn_seconds: 4
+
+  # Effects applied on respawn
+  resistance_duration_ticks: 60
+  resistance_amplifier: 10
+  no_damage_ticks: 60
+
+weapons:
+  gun:
+    velocity: 1.4
+    # If true, shots fly straight (no gravity), like wind charges
+    disable_gravity: true
+    paint_radius: 1.5
+    kill_paint_radius: 3.0
+  bomb:
+    velocity: 1.1
+    # Makes bombs more "lobbed" / arced (higher Y, slightly less horizontal speed)
+    horizontal_multiplier: 0.85
+    upward_boost: 0.55
+    paint_radius: 5.0
+    kill_paint_radius: 5.0
+
+boosts:
+  enabled: true
+
+  # Random interval between spawns
+  min_interval_seconds: 10
+  max_interval_seconds: 30
+
+  # Chance of Bomb vs Bacillus
+  bomb_percent: 70
+
+  # Drop points in the arena world
+  locations:
+    - [-31.0, 37.0, -12.0]
+    - [-41.0, 44.0, -36.0]
+
+bacillus:
+  duration_seconds: 5
+  range_blocks: 3.2
+  cooldown_ms: 250
+
+movement:
+  sneak_on_ink:
+    enabled: true
+    scan_steps: 3
+    scan_step_blocks: 0.1
+    speed_amplifier: 18
+    invisibility_amplifier: 1
+    effect_duration_ticks: 2
+    task_period_ticks: 1
+
+arenas:
+  - id: arena-1
+    world: sp_arena_1
+    # Optional: override parallelism for a specific arena
+    # instances: 2
+    teamCount: 2
+    playersPerTeam: 3
+
+    # Random spawn points per team.
+    # Team IDs are the same as in-game team indices: 0..(teamCount-1)
+    # Point format: [x, y, z, yaw(optional), pitch(optional)]
+    spawns:
+      "0":
+        - [10.5, 65.0, 10.5, 90.0, 0.0]
+        - [12.5, 65.0, 10.5, 90.0, 0.0]
+      "1":
+        - [-10.5, 65.0, -10.5, -90.0, 0.0]
+        - [-12.5, 65.0, -10.5, -90.0, 0.0]

@@ -1,0 +1,463 @@
+package ru.joutak.splatoon.config
+
+import org.bukkit.configuration.file.YamlConfiguration
+import java.util.logging.Logger
+import kotlin.math.max
+
+data class SpawnPoint(
+    val x: Double,
+    val y: Double,
+    val z: Double,
+    val yaw: Float? = null,
+    val pitch: Float? = null
+)
+
+data class ArenaSettings(
+    val id: String,
+    val templateWorld: String,
+    val teamCount: Int,
+    val playersPerTeam: Int,
+    val spawns: Map<Int, List<SpawnPoint>>,
+    /** How many parallel queue instances should be created for this arena template. */
+    val instances: Int
+)
+
+data class CeremonyPodium(
+    val place: Int,
+    val minX: Int,
+    val minY: Int,
+    val minZ: Int,
+    val maxX: Int,
+    val maxY: Int,
+    val maxZ: Int,
+    val spawn: SpawnPoint? = null
+)
+
+object SplatoonSettings {
+    var lobbyWorldName: String = "world"
+        private set
+
+    var defaultTemplateWorld: String = "sp_arena"
+        private set
+
+    /**
+     * Global fallback for arena parallelism.
+     * If arena config contains `instances: N`, it overrides this value.
+     */
+    var maxParallelGamesPerArena: Int = 1
+        private set
+
+    var gameDurationSeconds: Int = 300
+        private set
+
+    var returnToLobbyDelaySeconds: Int = 5
+        private set
+
+
+    var ceremonyEnabled: Boolean = false
+        private set
+
+    var ceremonyTemplateWorld: String = "sp_ceremony"
+        private set
+
+    // How long players stay in the ceremony room before returning (or being kicked by tournament).
+    var ceremonyDurationSeconds: Int = 8
+        private set
+
+    // How many wind charges to give each player during ceremony (0 = none)
+    var ceremonyWindCharges: Int = 0
+        private set
+
+    // Where to teleport spectators during ceremony (they are NOT bounded to podium squares)
+    var ceremonySpectatorSpawn: SpawnPoint? = null
+        private set
+
+    // 4 podium squares (2x2 blocks each by default). Keys: place 1..4.
+    val ceremonyPodiumsByPlace: MutableMap<Int, CeremonyPodium> = mutableMapOf()
+
+    var scoreboardUpdateTicks: Long = 10
+        private set
+
+    var actionbarUpdateTicks: Long = 5
+        private set
+
+    var inkMaxHp: Int = 3
+        private set
+
+    var inkRegenEnabled: Boolean = true
+        private set
+
+    // While player is in "squid" mode (INVISIBILITY effect)
+    // 1.0 = +1 Ink HP per second
+    var inkRegenRatePerSecond: Double = 0.5
+        private set
+
+    var inkRegenDelayAfterDamageSeconds: Int = 2
+        private set
+
+    var spawnProtectionAfterRespawnSeconds: Int = 4
+        private set
+
+    var spawnProtectionResistanceDurationTicks: Int = 60
+        private set
+
+    var spawnProtectionResistanceAmplifier: Int = 10
+        private set
+
+    var spawnProtectionNoDamageTicks: Int = 60
+        private set
+
+    var gunVelocity: Double = 1.4
+        private set
+
+    var gunDisableGravity: Boolean = true
+        private set
+
+    var bombVelocity: Double = 1.1
+        private set
+
+    var bombHorizontalMultiplier: Double = 0.85
+        private set
+
+    var bombUpwardBoost: Double = 0.55
+        private set
+
+    var gunPaintRadius: Double = 1.5
+        private set
+
+    var bombPaintRadius: Double = 5.0
+        private set
+
+    var gunKillPaintRadius: Double = 3.0
+        private set
+
+    var bombKillPaintRadius: Double = 5.0
+        private set
+
+    var boostsEnabled: Boolean = true
+        private set
+
+    var boostsMinIntervalSeconds: Int = 18
+        private set
+
+    var boostsMaxIntervalSeconds: Int = 39
+        private set
+
+    var boostsBombPercent: Int = 70
+        private set
+
+    var bacillusDurationSeconds: Int = 5
+        private set
+
+    var bacillusRangeBlocks: Double = 3.2
+        private set
+
+    var bacillusCooldownMs: Long = 250
+        private set
+
+    var sneakOnInkEnabled: Boolean = true
+        private set
+
+    var sneakOnInkScanSteps: Int = 3
+        private set
+
+    var sneakOnInkScanStepBlocks: Double = 0.1
+        private set
+
+    var sneakOnInkSpeedAmplifier: Int = 18
+        private set
+
+    var sneakOnInkInvisibilityAmplifier: Int = 1
+        private set
+
+    var sneakOnInkEffectDurationTicks: Int = 2
+        private set
+
+    var sneakOnInkTaskPeriodTicks: Long = 1
+        private set
+
+    val boostLocations: MutableList<List<Double>> = mutableListOf()
+
+    val arenas: MutableList<ArenaSettings> = mutableListOf()
+    val arenasById: MutableMap<String, ArenaSettings> = mutableMapOf()
+
+    fun load(config: YamlConfiguration, logger: Logger) {
+        lobbyWorldName = config.getString("lobby.world")
+            ?: config.getString("lobby_name")
+            ?: "world"
+
+        defaultTemplateWorld = config.getString("game.default_template_world")
+            ?: config.getString("map_name")
+            ?: "sp_arena"
+
+        maxParallelGamesPerArena = max(
+            1,
+            config.getInt(
+                "game.max_parallel_games_per_arena",
+                config.getInt("game.max_parallel_games", 1)
+            )
+        )
+
+        gameDurationSeconds = max(1, config.getInt("game.duration_seconds", 300))
+        returnToLobbyDelaySeconds = max(0, config.getInt("game.return_to_lobby_delay_seconds", 5))
+        ceremonyEnabled = config.getBoolean("ceremony.enabled", false)
+
+        // Preferred (CW-like) ceremony config:
+        // ceremony:
+        //   enabled: true
+        //   template-name: Ceremony
+        //   duration-seconds: 10
+        //   wind-charges: 16
+        //   podiums:
+        //     - [x1, y, z1, x2, z2, yaw]
+        ceremonyTemplateWorld =
+            config.getString("ceremony.template-name")
+                ?: config.getString("ceremony.template_name")
+                ?: config.getString("ceremony.template_world")
+                ?: "sp_ceremony"
+
+        ceremonyDurationSeconds = max(
+            0,
+            config.getInt("ceremony.duration-seconds", config.getInt("ceremony.duration_seconds", 8))
+        )
+
+        ceremonyWindCharges = max(
+            0,
+            config.getInt("ceremony.wind-charges", config.getInt("ceremony.wind_charges", 0))
+        )
+
+        ceremonySpectatorSpawn = parseSpawnPoint(
+            config.getList("ceremony.spectator-spawn")
+                ?: config.getList("ceremony.spectator_spawn")
+                ?: config.getList("ceremony.spectatorSpawn")
+        )
+
+        ceremonyPodiumsByPlace.clear()
+
+        val podiumsAny = config.getList("ceremony.podiums") ?: emptyList<Any>()
+        val listEntries = podiumsAny.filterIsInstance<List<*>>()
+        if (listEntries.isNotEmpty()) {
+            // New format: list entries are in order (place = index + 1).
+            listEntries.forEachIndexed { idx, entry ->
+                if (idx >= 4) return@forEachIndexed
+                if (entry.size < 6) return@forEachIndexed
+
+                val x1 = (entry[0] as? Number)?.toInt() ?: return@forEachIndexed
+                val y = (entry[1] as? Number)?.toInt() ?: return@forEachIndexed
+                val z1 = (entry[2] as? Number)?.toInt() ?: return@forEachIndexed
+                val x2 = (entry[3] as? Number)?.toInt() ?: return@forEachIndexed
+                val z2 = (entry[4] as? Number)?.toInt() ?: return@forEachIndexed
+                val yaw = (entry[5] as? Number)?.toFloat() ?: return@forEachIndexed
+
+                val minX = kotlin.math.min(x1, x2)
+                val maxX = kotlin.math.max(x1, x2)
+                val minZ = kotlin.math.min(z1, z2)
+                val maxZ = kotlin.math.max(z1, z2)
+
+                val centerX = (minX + maxX) / 2.0 + 0.5
+                val centerZ = (minZ + maxZ) / 2.0 + 0.5
+
+                val podium = CeremonyPodium(
+                    place = idx + 1,
+                    minX = minX,
+                    minY = y,
+                    minZ = minZ,
+                    maxX = maxX,
+                    maxY = y,
+                    maxZ = maxZ,
+                    spawn = SpawnPoint(centerX, y.toDouble(), centerZ, yaw, 0f)
+                )
+                ceremonyPodiumsByPlace[idx + 1] = podium
+            }
+        } else {
+            // Legacy format (map list with place/min/max/spawn).
+            val mapEntries = podiumsAny.filterIsInstance<Map<*, *>>()
+            for (rawAny in mapEntries) {
+                val raw = rawAny.entries.associate { it.key.toString() to it.value }
+
+                val place = (raw["place"] as? Number)?.toInt() ?: continue
+                val min = parseIntCoord3(raw["min"]) ?: continue
+                val max = parseIntCoord3(raw["max"]) ?: continue
+                val spawn = parseSpawnPoint(raw["spawn"])
+
+                val (minX0, minY0, minZ0) = min
+                val (maxX0, maxY0, maxZ0) = max
+
+                val podium = CeremonyPodium(
+                    place = place,
+                    minX = kotlin.math.min(minX0, maxX0),
+                    minY = kotlin.math.min(minY0, maxY0),
+                    minZ = kotlin.math.min(minZ0, maxZ0),
+                    maxX = kotlin.math.max(minX0, maxX0),
+                    maxY = kotlin.math.max(minY0, maxY0),
+                    maxZ = kotlin.math.max(minZ0, maxZ0),
+                    spawn = spawn
+                )
+                ceremonyPodiumsByPlace[place] = podium
+            }
+        }
+
+        scoreboardUpdateTicks = max(1, config.getLong("game.scoreboard_update_ticks", 10))
+        actionbarUpdateTicks = max(1, config.getLong("game.actionbar_update_ticks", 5))
+
+        inkMaxHp = max(1, config.getInt("ink.max_hp", 3))
+
+        // Ink HP regeneration while player is in squid mode (INVISIBILITY).
+        // Backward compatible with older key: ink.regen_on_own_color.*
+        val legacyRegenPath = "ink.regen_on_own_color"
+        inkRegenEnabled = config.getBoolean("ink.regen.enabled", config.getBoolean("$legacyRegenPath.enabled", true))
+        inkRegenRatePerSecond = config.getDouble("ink.regen.rate_per_second", config.getDouble("$legacyRegenPath.rate_per_second", 0.5)).coerceAtLeast(0.0)
+        inkRegenDelayAfterDamageSeconds = max(
+            0,
+            config.getInt("ink.regen.delay_after_damage_seconds", config.getInt("$legacyRegenPath.delay_after_damage_seconds", 2))
+        )
+
+        spawnProtectionAfterRespawnSeconds = max(0, config.getInt("spawn_protection.after_respawn_seconds", 4))
+        spawnProtectionResistanceDurationTicks = max(0, config.getInt("spawn_protection.resistance_duration_ticks", 60))
+        spawnProtectionResistanceAmplifier = max(0, config.getInt("spawn_protection.resistance_amplifier", 10))
+        spawnProtectionNoDamageTicks = max(0, config.getInt("spawn_protection.no_damage_ticks", 60))
+
+        gunVelocity = config.getDouble("weapons.gun.velocity", 1.4).coerceAtLeast(0.0)
+        gunDisableGravity = config.getBoolean("weapons.gun.disable_gravity", true)
+
+        bombVelocity = config.getDouble("weapons.bomb.velocity", 1.1).coerceAtLeast(0.0)
+        bombHorizontalMultiplier = config.getDouble("weapons.bomb.horizontal_multiplier", 0.85).coerceIn(0.05, 5.0)
+        bombUpwardBoost = config.getDouble("weapons.bomb.upward_boost", 0.55).coerceIn(-5.0, 5.0)
+        gunPaintRadius = config.getDouble("weapons.gun.paint_radius", 1.5)
+        bombPaintRadius = config.getDouble("weapons.bomb.paint_radius", 5.0)
+        gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)
+        bombKillPaintRadius = config.getDouble("weapons.bomb.kill_paint_radius", 5.0)
+
+        boostsEnabled = config.getBoolean("boosts.enabled", true)
+        boostsMinIntervalSeconds = max(1, config.getInt("boosts.min_interval_seconds", 18))
+        boostsMaxIntervalSeconds = max(boostsMinIntervalSeconds, config.getInt("boosts.max_interval_seconds", 39))
+        boostsBombPercent = config.getInt("boosts.bomb_percent", 70).coerceIn(0, 100)
+
+        boostLocations.clear()
+        val locList = config.getList("boosts.locations") ?: config.getList("boost_locations") ?: emptyList<Any>()
+        for (item in locList) {
+            val coord = parseCoord3(item) ?: continue
+            boostLocations.add(coord)
+        }
+        if (boostLocations.isEmpty()) {
+            boostLocations.add(listOf(0.0, 0.0, 0.0))
+            logger.warning("boosts.locations is empty; using fallback [0,0,0]")
+        }
+
+        bacillusDurationSeconds = max(0, config.getInt("bacillus.duration_seconds", 5))
+        bacillusRangeBlocks = config.getDouble("bacillus.range_blocks", 3.2).coerceAtLeast(0.0)
+        bacillusCooldownMs = max(0, config.getLong("bacillus.cooldown_ms", 250))
+
+        sneakOnInkEnabled = config.getBoolean("movement.sneak_on_ink.enabled", true)
+        sneakOnInkScanSteps = max(1, config.getInt("movement.sneak_on_ink.scan_steps", 3))
+        sneakOnInkScanStepBlocks = config.getDouble("movement.sneak_on_ink.scan_step_blocks", 0.1).coerceAtLeast(0.01)
+        sneakOnInkSpeedAmplifier = config.getInt("movement.sneak_on_ink.speed_amplifier", 18).coerceIn(0, 255)
+        sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
+        sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
+        sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
+
+        arenas.clear()
+        arenasById.clear()
+
+        val arenasRaw = config.getMapList("arenas") ?: emptyList<Map<String, Any>>()
+        for (raw in arenasRaw) {
+            val id = raw["id"] as? String ?: continue
+            val world = raw["world"] as? String ?: continue
+            val teamCount = (raw["teamCount"] as? Int) ?: 2
+            val playersPerTeam = (raw["playersPerTeam"] as? Int) ?: 3
+
+            val rawInstances = (raw["instances"] as? Int)
+                ?: (raw["maxParallelGames"] as? Int)
+                ?: maxParallelGamesPerArena
+            val instances = max(1, rawInstances)
+
+            val spawns = parseArenaSpawns(raw["spawns"], logger)
+            val s = ArenaSettings(id, world, teamCount, playersPerTeam, spawns, instances)
+            arenas.add(s)
+            arenasById[id] = s
+        }
+    }
+
+    private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {
+        if (item !is List<*>) return null
+        if (item.size < 3) return null
+        return try {
+            val x = (item[0] as Number).toInt()
+            val y = (item[1] as Number).toInt()
+            val z = (item[2] as Number).toInt()
+            Triple(x, y, z)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseCoord3(item: Any?): List<Double>? {
+        if (item !is List<*>) return null
+        if (item.size < 3) return null
+        return try {
+            val x = (item[0] as Number).toDouble()
+            val y = (item[1] as Number).toDouble()
+            val z = (item[2] as Number).toDouble()
+            listOf(x, y, z)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseArenaSpawns(raw: Any?, logger: Logger): Map<Int, List<SpawnPoint>> {
+        val result = mutableMapOf<Int, List<SpawnPoint>>()
+        val map = raw as? Map<*, *> ?: return result
+
+        for ((kAny, vAny) in map) {
+            val team = parseTeamKey(kAny) ?: continue
+            val pointsList = vAny as? List<*> ?: continue
+
+            val points = mutableListOf<SpawnPoint>()
+            for (pAny in pointsList) {
+                val sp = parseSpawnPoint(pAny)
+                if (sp != null) points.add(sp)
+            }
+            if (points.isEmpty()) continue
+
+            result[team] = points.toList()
+        }
+
+        if (map.isNotEmpty() && result.isEmpty()) {
+            logger.warning("Arena spawns section exists but no valid points were parsed.")
+        }
+
+        return result.toMap()
+    }
+
+    private fun parseSpawnPoint(raw: Any?): SpawnPoint? {
+        if (raw !is List<*>) return null
+        if (raw.size < 3) return null
+        return try {
+            val x = (raw[0] as Number).toDouble()
+            val y = (raw[1] as Number).toDouble()
+            val z = (raw[2] as Number).toDouble()
+            val yaw = if (raw.size >= 4) (raw[3] as Number).toFloat() else null
+            val pitch = if (raw.size >= 5) (raw[4] as Number).toFloat() else null
+            SpawnPoint(x, y, z, yaw, pitch)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseTeamKey(raw: Any?): Int? {
+        return when (raw) {
+            is Number -> raw.toInt()
+            is String -> {
+                raw.toIntOrNull()
+                    ?: when (raw.lowercase()) {
+                        "red", "r" -> 0
+                        "yellow", "y" -> 1
+                        "green", "g" -> 2
+                        "blue", "b" -> 3
+                        else -> null
+                    }
+            }
+            else -> null
+        }
+    }
+}
