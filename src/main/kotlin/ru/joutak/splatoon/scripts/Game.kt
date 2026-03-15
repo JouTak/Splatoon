@@ -86,6 +86,9 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     private val playerJoinedAtMs: MutableMap<UUID, Long> = mutableMapOf()
     private val playerLeftAtMs: MutableMap<UUID, Long> = mutableMapOf()
 
+    private val playerPreviousSpawns: MutableMap<UUID, SpawnPoint> = mutableMapOf()
+    private var globalPreviousSpawn: SpawnPoint? = null
+
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
     private var boostTimerTask: BukkitTask? = null
@@ -1379,21 +1382,39 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     fun teleportToSpawn(player: Player) {
         val w = Bukkit.getWorld(worldName) ?: return
 
-        val loc = pickSpawnLocation(w) ?: w.spawnLocation
+        val loc = pickSpawnLocation(w, player.uniqueId) ?: w.spawnLocation
 
         player.teleport(loc)
     }
 
-    private fun pickSpawnLocation(world: World): org.bukkit.Location? {
+    private fun pickSpawnLocation(world: World, uuid: UUID): org.bukkit.Location? {
         if (spawns.isEmpty()) return null
 
-        val chosen = spawns[Random.nextInt(spawns.size)]
+        val bufferSpawns = spawns.toMutableList()
+
+        if (globalPreviousSpawn != null) {
+            bufferSpawns.remove(globalPreviousSpawn)
+        }
+
+        if (playerPreviousSpawns.containsKey(uuid)) {
+            bufferSpawns.remove(playerPreviousSpawns[uuid])
+        }
+
+        if (bufferSpawns.isEmpty()) {
+            return null
+        }
+
+        val chosen = bufferSpawns[Random.nextInt(bufferSpawns.size)]
+
+        playerPreviousSpawns[uuid] = chosen
+        globalPreviousSpawn = chosen
 
         val fallback = world.spawnLocation
         val yaw = chosen.yaw ?: fallback.yaw
         val pitch = chosen.pitch ?: fallback.pitch
         return org.bukkit.Location(world, chosen.x, chosen.y, chosen.z, yaw, pitch)
     }
+
     private fun createBossBar() {
         removeBossBar()
 
