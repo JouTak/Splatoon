@@ -20,7 +20,7 @@ class DamageGuardListener : Listener {
         if (event.cause == EntityDamageEvent.DamageCause.VOID) {
             game.resetInkHp(player.uniqueId)
             player.activePotionEffects.forEach { e -> player.removePotionEffect(e.type) }
-            game.teleportToTeamSpawn(player)
+            game.teleportToSpawn(player)
             game.setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
             game.syncHealthBar(player)
             player.fireTicks = 0
