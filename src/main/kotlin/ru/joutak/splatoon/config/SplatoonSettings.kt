@@ -17,7 +17,7 @@ data class ArenaSettings(
     val templateWorld: String,
     val teamCount: Int,
     val playersPerTeam: Int,
-    val spawns: Map<Int, List<SpawnPoint>>,
+    val spawns: List<SpawnPoint>,
     /** How many parallel queue instances should be created for this arena template. */
     val instances: Int
 )
@@ -404,29 +404,24 @@ object SplatoonSettings {
         }
     }
 
-    private fun parseArenaSpawns(raw: Any?, logger: Logger): Map<Int, List<SpawnPoint>> {
-        val result = mutableMapOf<Int, List<SpawnPoint>>()
-        val map = raw as? Map<*, *> ?: return result
+    private fun parseArenaSpawns(raw: Any?, logger: Logger): List<SpawnPoint> {
+        val result = mutableListOf<SpawnPoint>()
 
-        for ((kAny, vAny) in map) {
-            val team = parseTeamKey(kAny) ?: continue
-            val pointsList = vAny as? List<*> ?: continue
+        val list = raw as? List<*> ?: return result.toList()
 
-            val points = mutableListOf<SpawnPoint>()
-            for (pAny in pointsList) {
-                val sp = parseSpawnPoint(pAny)
-                if (sp != null) points.add(sp)
+        for (pAny in list) {
+            val sp = parseSpawnPoint(pAny)
+
+            if (sp != null) {
+                result.add(sp)
             }
-            if (points.isEmpty()) continue
-
-            result[team] = points.toList()
         }
 
-        if (map.isNotEmpty() && result.isEmpty()) {
+        if (list.isNotEmpty() && result.isEmpty()) {
             logger.warning("Arena spawns section exists but no valid points were parsed.")
         }
 
-        return result.toMap()
+        return result.toList()
     }
 
     private fun parseSpawnPoint(raw: Any?): SpawnPoint? {

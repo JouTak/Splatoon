@@ -115,13 +115,10 @@ arenas:
     teamCount: 2
     playersPerTeam: 3
 
-    # Random spawn points per team.
-    # Team IDs are the same as in-game team indices: 0..(teamCount-1)
+    # Random spawn points for everyone.
     # Point format: [x, y, z, yaw(optional), pitch(optional)]
     spawns:
-      "0":
-        - [10.5, 65.0, 10.5, 90.0, 0.0]
-        - [12.5, 65.0, 10.5, 90.0, 0.0]
-      "1":
-        - [-10.5, 65.0, -10.5, -90.0, 0.0]
-        - [-12.5, 65.0, -10.5, -90.0, 0.0]
+      - [10.5, 65.0, 10.5, 90.0, 0.0]
+      - [12.5, 65.0, 10.5, 90.0, 0.0]
+      - [-10.5, 65.0, -10.5, -90.0, 0.0]
+      - [-12.5, 65.0, -10.5, -90.0, 0.0]

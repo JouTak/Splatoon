@@ -30,7 +30,6 @@ import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.minigames.config.ConfigKeys
-import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.minigames.results.model.MatchContext
 import ru.joutak.minigames.results.model.MatchResult
 import ru.joutak.minigames.results.model.Metric
@@ -47,7 +46,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
-class Game(var worldName: String, val arenaId: String, private val teamSpawns: Map<Int, List<SpawnPoint>>) {
+class Game(var worldName: String, val arenaId: String, private val spawns: List<SpawnPoint>) {
 
     // Results (shared DB via MiniGamesAPI)
     val matchId: UUID = UUID.randomUUID()
@@ -353,7 +352,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             player.inventory.clear()
             ensureInkHealth(player)
             syncHealthBar(player)
-            teleportToTeamSpawn(player)
+            teleportToSpawn(player)
             setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
         }
 
@@ -1377,19 +1376,19 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return abs(cur.blockY - origin.blockY) >= 1
     }
 
-    fun teleportToTeamSpawn(player: Player) {
+    fun teleportToSpawn(player: Player) {
         val w = Bukkit.getWorld(worldName) ?: return
-        val team = commands[player.uniqueId]
-        val loc = pickTeamSpawnLocation(team, w) ?: w.spawnLocation
+
+        val loc = pickSpawnLocation(w) ?: w.spawnLocation
+
         player.teleport(loc)
     }
 
-    private fun pickTeamSpawnLocation(team: Int?, world: World): org.bukkit.Location? {
-        if (team == null) return null
-        val points = teamSpawns[team] ?: return null
-        if (points.isEmpty()) return null
+    private fun pickSpawnLocation(world: World): org.bukkit.Location? {
+        if (spawns.isEmpty()) return null
 
-        val chosen = points[Random.nextInt(points.size)]
+        val chosen = spawns[Random.nextInt(spawns.size)]
+
         val fallback = world.spawnLocation
         val yaw = chosen.yaw ?: fallback.yaw
         val pitch = chosen.pitch ?: fallback.pitch
