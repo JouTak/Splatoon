@@ -1382,26 +1382,25 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     fun teleportToSpawn(player: Player) {
         val w = Bukkit.getWorld(worldName) ?: return
 
-        val loc = pickSpawnLocation(w, player.uniqueId) ?: w.spawnLocation
+        val loc = pickSpawnLocation(w, player.uniqueId)
 
         player.teleport(loc)
     }
 
-    private fun pickSpawnLocation(world: World, uuid: UUID): org.bukkit.Location? {
-        if (spawns.isEmpty()) return null
+    private fun pickSpawnLocation(world: World, uuid: UUID): org.bukkit.Location {
+        if (spawns.isEmpty()) return world.spawnLocation
 
         val bufferSpawns = spawns.toMutableList()
 
-        if (globalPreviousSpawn != null) {
-            bufferSpawns.remove(globalPreviousSpawn)
-        }
+        bufferSpawns.remove(globalPreviousSpawn)
 
-        if (playerPreviousSpawns.containsKey(uuid)) {
-            bufferSpawns.remove(playerPreviousSpawns[uuid])
-        }
+        bufferSpawns.remove(playerPreviousSpawns[uuid])
 
         if (bufferSpawns.isEmpty()) {
-            return null
+            playerPreviousSpawns.remove(uuid)
+            globalPreviousSpawn = null
+
+            return world.spawnLocation
         }
 
         val chosen = bufferSpawns[Random.nextInt(bufferSpawns.size)]
