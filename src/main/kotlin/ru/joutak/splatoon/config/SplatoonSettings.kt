@@ -176,6 +176,12 @@ object SplatoonSettings {
     var sneakOnInkTaskPeriodTicks: Long = 1
         private set
 
+    var speedupOnIceEnabled: Boolean = true
+        private set
+
+    var speedupOnIceAmplifier: Int = 4
+        private set
+
     val boostLocations: MutableList<List<Double>> = mutableListOf()
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
@@ -355,6 +361,9 @@ object SplatoonSettings {
         sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
+
+        speedupOnIceEnabled = config.getBoolean("movement.speedup_on_ice.enabled", true)
+        speedupOnIceAmplifier = config.getInt("movement.speedup_on_ice.amplifier", 4).coerceIn(0, 255)
 
         arenas.clear()
         arenasById.clear()

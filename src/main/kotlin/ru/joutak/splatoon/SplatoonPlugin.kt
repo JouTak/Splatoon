@@ -12,6 +12,7 @@ import ru.joutak.splatoon.listeners.BoostPickupListener
 import ru.joutak.splatoon.listeners.CeremonyMoveListener
 import ru.joutak.splatoon.listeners.DamageGuardListener
 import ru.joutak.splatoon.listeners.NaturalRegenerationListener
+import ru.joutak.splatoon.listeners.PlayerMoveOnIceListener
 import ru.joutak.splatoon.listeners.PlayerSessionListener
 import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
@@ -85,6 +86,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(SpectatorWorldTeleportGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(CeremonyMoveListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
+        Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
 
         val cmd = getCommand("splatoon")
         if (cmd != null) {
