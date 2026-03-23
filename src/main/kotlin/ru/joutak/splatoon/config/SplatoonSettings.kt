@@ -176,6 +176,12 @@ object SplatoonSettings {
     var sneakOnInkTaskPeriodTicks: Long = 1
         private set
 
+    var slimeBlockJumpAmplifier: Int = 5
+        private set
+
+    var slimeBlockEffectDuration: Int = 200
+        private set
+
     val boostLocations: MutableList<List<Double>> = mutableListOf()
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
@@ -355,6 +361,10 @@ object SplatoonSettings {
         sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
+
+        slimeBlockJumpAmplifier = config.getInt("movement.slime_block.jump_amplifier", 5).coerceIn(0, 255)
+        slimeBlockEffectDuration = config.getInt("movement.slime_block.effect_duration", 200)
+
 
         arenas.clear()
         arenasById.clear()
