@@ -9,13 +9,8 @@ import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
-import java.util.UUID
 
-class SlimeBlockListener : Listener {
-
-    companion object {
-        private val playersOnSlime = mutableListOf<UUID>()
-    }
+class JumpPadListener : Listener {
 
     @EventHandler
     fun onMove(event: PlayerMoveEvent) {
@@ -28,44 +23,36 @@ class SlimeBlockListener : Listener {
 
         val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
 
-        val isOnSlime = blockBelow.type == Material.SLIME_BLOCK
+        val isOnJumpPad = blockBelow.type == Material.LIME_CONCRETE_POWDER
 
-        if (isOnSlime && !playersOnSlime.contains(uuid)) {
-            applyEffects(player)
-            playersOnSlime.add(uuid)
-        }
-        else if (!isOnSlime && playersOnSlime.contains(uuid)) {
-            removeEffects(player)
-            playersOnSlime.remove(uuid)
-        }
-        else if (isOnSlime && playersOnSlime.contains(uuid)) {
+        if (isOnJumpPad) {
             ensureJumpBoostActive(player)
         }
+        else {
+            removeEffect(player, PotionEffectType.JUMP_BOOST)
+        }
+
     }
 
     private fun applyEffects(player: Player) {
-        player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, SplatoonSettings.slimeBlockEffectDuration,
-            SplatoonSettings.slimeBlockJumpAmplifier, false, false, true))
+        player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, SplatoonSettings.jumpPadEffectDuration,
+            SplatoonSettings.jumpPadJumpAmplifier, false, false, true))
     }
 
-    private fun removeEffects(player: Player) {
-        player.removePotionEffect(PotionEffectType.JUMP_BOOST)
+    private fun removeEffect(player: Player, potionEffectType: PotionEffectType) {
+        player.removePotionEffect(potionEffectType)
     }
 
     private fun ensureJumpBoostActive(player: Player) {
         var needsUpdate = false
 
         val jumpEffect = player.getPotionEffect(PotionEffectType.JUMP_BOOST)
-        if (jumpEffect == null || jumpEffect.duration < 40) {
+        if (jumpEffect == null || jumpEffect.duration < 40 || jumpEffect.amplifier != SplatoonSettings.jumpPadJumpAmplifier) {
             needsUpdate = true
         }
 
-       if (jumpEffect?.amplifier != SplatoonSettings.slimeBlockJumpAmplifier) {
-           needsUpdate = true
-       }
-
         if (needsUpdate) {
-            removeEffects(player)
+            removeEffect(player, PotionEffectType.JUMP_BOOST)
             applyEffects(player)
         }
     }

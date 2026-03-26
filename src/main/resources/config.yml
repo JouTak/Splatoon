@@ -107,7 +107,7 @@ movement:
     effect_duration_ticks: 2
     task_period_ticks: 1
 
-  slime_blocks:
+  jump_pads:
     jump_amplifier: 5
     effect_duration: 200
 
