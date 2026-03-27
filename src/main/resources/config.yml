@@ -108,7 +108,7 @@ movement:
     task_period_ticks: 1
   speedup_on_ice:
     enabled: true
-    amplifier: 4
+    amplifier: 2
 
 arenas:
   - id: arena-1

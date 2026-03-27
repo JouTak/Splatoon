@@ -27,13 +27,19 @@ class PlayerMoveOnIceListener : Listener {
             player.addPotionEffect(
                 PotionEffect(
                     PotionEffectType.SPEED,
-                    2,
+                    -1,
                     SplatoonSettings.speedupOnIceAmplifier,
                     false,
                     false,
                     true
                 )
             )
+        } else {
+            val effect = player.getPotionEffect(PotionEffectType.SPEED)?: return
+
+            if (effect.duration == -1) {
+                player.removePotionEffect(PotionEffectType.SPEED)
+            }
         }
     }
 
