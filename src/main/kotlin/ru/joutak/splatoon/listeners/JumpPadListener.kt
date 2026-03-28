@@ -12,6 +12,16 @@ import ru.joutak.splatoon.scripts.GameManager
 
 class JumpPadListener : Listener {
 
+    private var jumpPadMaterial: Material? = null
+
+    private fun getJumpPadMaterial(): Material? {
+        val currentBlockType = SplatoonSettings.jumpPadBlockType
+        if (jumpPadMaterial?.name != currentBlockType) {
+            jumpPadMaterial = Material.getMaterial(currentBlockType)
+        }
+        return jumpPadMaterial
+    }
+
     @EventHandler
     fun onMove(event: PlayerMoveEvent) {
         val player = event.player
@@ -21,9 +31,10 @@ class JumpPadListener : Listener {
 
         if (player.world.name != game.worldName) return
 
+        val jumpPadBlock = getJumpPadMaterial()
         val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
 
-        val isOnJumpPad = blockBelow.type == Material.LIME_CONCRETE_POWDER
+        val isOnJumpPad = blockBelow.type == jumpPadBlock
 
         if (isOnJumpPad) {
             ensureJumpBoostActive(player)

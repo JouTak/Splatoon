@@ -108,6 +108,7 @@ movement:
     task_period_ticks: 1
 
   jump_pads:
+    jump_pad_block_type: LIME_CONCRETE_POWDER
     jump_amplifier: 5
     effect_duration: 200
 

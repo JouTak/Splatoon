@@ -182,6 +182,10 @@ object SplatoonSettings {
     var jumpPadEffectDuration: Int = 200
         private set
 
+    var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
+        private set
+
+
     val boostLocations: MutableList<List<Double>> = mutableListOf()
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
@@ -364,6 +368,7 @@ object SplatoonSettings {
 
         jumpPadJumpAmplifier = config.getInt("movement.jump_pads.jump_amplifier", 5).coerceIn(0, 255)
         jumpPadEffectDuration = config.getInt("movement.jump_pads.effect_duration", 200)
+        jumpPadBlockType = config.getString("movement.jump_pads.jump_pad_block_type", "LIME_CONCRETE_POWDER") ?: "LIME_CONCRETE_POWDER"
 
 
         arenas.clear()
