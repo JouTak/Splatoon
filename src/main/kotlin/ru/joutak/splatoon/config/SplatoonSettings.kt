@@ -176,6 +176,12 @@ object SplatoonSettings {
     var sneakOnInkTaskPeriodTicks: Long = 1
         private set
 
+    var speedupOnIceEnabled: Boolean = true
+        private set
+
+    var speedupOnIceAmplifier: Int = 2
+        private set
+
     var jumpPadJumpAmplifier: Int = 5
         private set
 
@@ -366,6 +372,8 @@ object SplatoonSettings {
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
 
+        speedupOnIceEnabled = config.getBoolean("movement.speedup_on_ice.enabled", true)
+        speedupOnIceAmplifier = config.getInt("movement.speedup_on_ice.amplifier", 2).coerceIn(0, 255)
         jumpPadJumpAmplifier = config.getInt("movement.jump_pads.jump_amplifier", 5).coerceIn(0, 255)
         jumpPadEffectDuration = config.getInt("movement.jump_pads.effect_duration", 200)
         jumpPadBlockType = config.getString("movement.jump_pads.jump_pad_block_type", "LIME_CONCRETE_POWDER") ?: "LIME_CONCRETE_POWDER"
