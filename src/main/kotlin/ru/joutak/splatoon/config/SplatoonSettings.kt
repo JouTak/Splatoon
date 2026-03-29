@@ -176,6 +176,16 @@ object SplatoonSettings {
     var sneakOnInkTaskPeriodTicks: Long = 1
         private set
 
+    var jumpPadJumpAmplifier: Int = 5
+        private set
+
+    var jumpPadEffectDuration: Int = 200
+        private set
+
+    var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
+        private set
+
+
     val boostLocations: MutableList<List<Double>> = mutableListOf()
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
@@ -355,6 +365,11 @@ object SplatoonSettings {
         sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
+
+        jumpPadJumpAmplifier = config.getInt("movement.jump_pads.jump_amplifier", 5).coerceIn(0, 255)
+        jumpPadEffectDuration = config.getInt("movement.jump_pads.effect_duration", 200)
+        jumpPadBlockType = config.getString("movement.jump_pads.jump_pad_block_type", "LIME_CONCRETE_POWDER") ?: "LIME_CONCRETE_POWDER"
+
 
         arenas.clear()
         arenasById.clear()
