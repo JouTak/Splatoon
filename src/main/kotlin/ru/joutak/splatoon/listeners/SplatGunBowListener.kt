@@ -5,6 +5,8 @@ import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
+import org.bukkit.entity.Display
+import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.entity.Snowball
 import org.bukkit.event.Event
@@ -136,20 +138,27 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         // Важно: используем точный key как в /playsound, чтобы не зависеть от enum.
         player.world.playSound(muzzle, "minecraft:item.dye.use", 1.0f, 1.0f)
 
-        player.world.spawn(muzzle, Snowball::class.java) { snowball ->
-            snowball.item = projectileItem
-            snowball.setGravity(!SplatoonSettings.gunDisableGravity)
-            snowball.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
-            snowball.shooter = player
+	    	player.world.spawn(muzzle, Snowball::class.java) { projectile ->
+            projectile.item = ItemStack(Material.AIR, 1)
+            projectile.setGravity(!SplatoonSettings.gunDisableGravity)
+            projectile.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
+            projectile.shooter = player
 
             if (inCeremony) {
-                snowball.setMetadata(ceremonyKey, FixedMetadataValue(plugin, 1))
+                projectile.setMetadata(ceremonyKey, FixedMetadataValue(plugin, 1))
             }
 
-            snowball.setMetadata("paintKey", FixedMetadataValue(plugin, 1))
-            snowball.setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
-            snowball.setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
-            snowball.setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
+            projectile.setMetadata("paintKey", FixedMetadataValue(plugin, 1))
+            projectile.setMetadata("paintTeam", FixedMetadataValue(plugin, paintTeam))
+            projectile.setMetadata("baseTeam", FixedMetadataValue(plugin, baseTeam))
+            projectile.setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
+
+            val display = player.world.spawn(projectile.location, ItemDisplay::class.java).apply {
+	                setItemStack(projectileItem)
+                billboard = Display.Billboard.FIXED
+                disableDisplayInterpolation(this)
+            }
+            projectile.addPassenger(display)
         }
     }
 
@@ -174,9 +183,18 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     }
 
     private fun createProjectileItem(name: String): ItemStack {
-        val stack = ItemStack(Material.SNOWBALL, 1)
+        val stack = ItemStack(Material.WIND_CHARGE, 1)
         stack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name))
         return stack
+    }
+
+    private fun disableDisplayInterpolation(display: ItemDisplay) {
+        runCatching {
+            display.javaClass.getMethod("setInterpolationDuration", Int::class.javaPrimitiveType).invoke(display, 0)
+        }
+        runCatching {
+            display.javaClass.getMethod("setTeleportDuration", Int::class.javaPrimitiveType).invoke(display, 0)
+        }
     }
 
     private fun teamToColorName(team: Int): String {

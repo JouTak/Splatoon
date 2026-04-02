@@ -6,6 +6,8 @@ import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.Sound
+import org.bukkit.entity.Display
+import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Snowball
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
@@ -71,13 +73,13 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
             // Throw sound for everyone nearby.
             player.world.playSound(player.location, Sound.ENTITY_SNOWBALL_THROW, 0.75f, 0.85f)
 
-            player.world.spawn(
+            val projectile = player.world.spawn(
                 Location(
                     player.world, player.eyeLocation.x, player.eyeLocation.y - 0.1, player.eyeLocation.z
                 ).add(dir),
                 Snowball::class.java
             ).apply {
-                item = projectileItem
+                item = ItemStack(Material.AIR, 1)
                 setGravity(true)
                 val vel = dir.clone().multiply(SplatoonSettings.bombVelocity * SplatoonSettings.bombHorizontalMultiplier)
                 vel.y += SplatoonSettings.bombUpwardBoost
@@ -95,6 +97,13 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
                 }
             }
 
+            val display = player.world.spawn(projectile.location, ItemDisplay::class.java).apply {
+                setItemStack(projectileItem)
+                billboard = Display.Billboard.FIXED
+                disableDisplayInterpolation(this)
+            }
+            projectile.addPassenger(display)
+
             if (!isAdminUse && !inCeremony) {
                 val item = player.inventory.itemInMainHand
                 if (item.type != Material.AIR) {
@@ -110,8 +119,17 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
     }
 
     private fun createProjectileItem(name: String): ItemStack {
-        val stack = ItemStack(Material.SNOWBALL, 1)
+        val stack = ItemStack(Material.WIND_CHARGE, 1)
         stack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name))
         return stack
+    }
+
+    private fun disableDisplayInterpolation(display: ItemDisplay) {
+        runCatching {
+            display.javaClass.getMethod("setInterpolationDuration", Int::class.javaPrimitiveType).invoke(display, 0)
+        }
+        runCatching {
+            display.javaClass.getMethod("setTeleportDuration", Int::class.javaPrimitiveType).invoke(display, 0)
+        }
     }
 }

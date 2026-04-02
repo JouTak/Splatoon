@@ -34,10 +34,13 @@ class ProjectileHitListener : Listener {
 
         // В церемонии разрешаем просто "пострелять" без покраски и без урона.
         if (entity.hasMetadata(ceremonyKey)) {
+            runCatching { entity.passengers.toList().forEach { it.remove() } }
             entity.remove()
             return
         }
         if (!entity.hasMetadata("paintKey")) return
+
+        runCatching { entity.passengers.toList().forEach { it.remove() } }
 
         val shooterUuid = getShooterUuid(entity.getMetadata("shooterId").firstOrNull()?.asString())
         val shooter = if (shooterUuid != null) Bukkit.getPlayer(shooterUuid) else null
@@ -147,7 +150,7 @@ class ProjectileHitListener : Listener {
                 splatAndRespawn(victim, game)
                 explosivePaint(killPaintRadius, deathLoc, entity.world, game, shooter.uniqueId, paintTeam, null)
             }
-        }
+	        }
     }
 
     private fun playHitMarker(shooter: Player, victim: Player, victimHpLeft: Int, game: Game) {
@@ -180,7 +183,7 @@ class ProjectileHitListener : Listener {
     private fun splatAndRespawn(player: Player, game: Game) {
         game.resetInkHp(player.uniqueId)
         player.activePotionEffects.forEach { e -> player.removePotionEffect(e.type) }
-        game.teleportToTeamSpawn(player)
+        game.teleportToSpawn(player)
         game.setSpawnProtection(player, SplatoonSettings.spawnProtectionAfterRespawnSeconds * 1000L)
         game.syncHealthBar(player)
         player.velocity = player.velocity.zero()
