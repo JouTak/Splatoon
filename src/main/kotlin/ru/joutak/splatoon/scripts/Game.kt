@@ -18,6 +18,8 @@ import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
+import org.bukkit.entity.EntityType
+import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.CrossbowMeta
@@ -25,7 +27,10 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitTask
+import org.bukkit.scoreboard.Criteria
 import org.bukkit.scoreboard.DisplaySlot
+import org.bukkit.scoreboard.Objective
+import org.bukkit.scoreboard.Scoreboard
 import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
@@ -87,6 +92,8 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private val playerJoinedAtMs: MutableMap<UUID, Long> = mutableMapOf()
     private val playerLeftAtMs: MutableMap<UUID, Long> = mutableMapOf()
 
+    val layingBoosts = mutableMapOf<List<Double>, ItemDisplay>()
+
     private var countdownTask: BukkitTask? = null
     private var gameTimerTask: BukkitTask? = null
     private var boostTimerTask: BukkitTask? = null
@@ -113,15 +120,15 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
     private var spectatorBossBar: BossBar? = null
     private var activeTeams: List<Int> = listOf()
 
-    private val playerScoreboards: MutableMap<UUID, org.bukkit.scoreboard.Scoreboard> = mutableMapOf()
-    private val playerObjectives: MutableMap<UUID, org.bukkit.scoreboard.Objective> = mutableMapOf()
+    private val playerScoreboards: MutableMap<UUID, Scoreboard> = mutableMapOf()
+    private val playerObjectives: MutableMap<UUID, Objective> = mutableMapOf()
 
     private val spectators: MutableSet<UUID> = mutableSetOf()
     private val spectatorBackups: MutableMap<UUID, SpectatorBackup> = mutableMapOf()
 
     private data class SpectatorBackup(
-        val location: org.bukkit.Location,
-        val gameMode: org.bukkit.GameMode,
+        val location: Location,
+        val gameMode: GameMode,
         val allowFlight: Boolean,
         val isFlying: Boolean,
         val maxHealthBase: Double,
@@ -135,7 +142,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val saturation: Float,
         val absorption: Double,
         val potionEffects: List<PotionEffect>,
-        val scoreboard: org.bukkit.scoreboard.Scoreboard
+        val scoreboard: Scoreboard
     )
 
     fun getActivePlayerCount(): Int = commands.size
@@ -711,7 +718,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         return true
     }
 
-    private fun resetPlayerForCeremony(player: org.bukkit.entity.Player) {
+    private fun resetPlayerForCeremony(player: Player) {
         player.inventory.clear()
         player.activePotionEffects.forEach { eff -> player.removePotionEffect(eff.type) }
         player.foodLevel = 20
@@ -1160,17 +1167,60 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         boostTimerTask = Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             val w = Bukkit.getWorld(worldName) ?: return@Runnable
 
-            if (Random.nextInt(100) < SplatoonSettings.boostsBombPercent) {
-                giveSplatBomb(w)
-            } else {
-                giveBacillus(w)
+            if (SplatoonSettings.boostLocations.size != layingBoosts.size) {
+                val buffer = SplatoonSettings.boostLocations.toMutableList()
+
+                buffer.removeAll(layingBoosts.keys)
+
+                val rLoc = buffer[Random.nextInt(buffer.size)]
+
+                val loc = Location(w, rLoc[0], rLoc[1], rLoc[2])
+
+                //TODO: Сделать нормальный выбор рандома, поддерживающий любое кол-во разных бустов.
+
+                val rName: String = if (Random.nextInt(100) < 50) {
+                    "bomb"
+                } else {
+                    "bacillus"
+                }
+
+                val display = makeBoost(rName, w, loc)
+
+                if (display != null) {
+                    layingBoosts.put(rLoc, display)
+                }
             }
 
             val minSec = SplatoonSettings.boostsMinIntervalSeconds
             val maxSec = SplatoonSettings.boostsMaxIntervalSeconds
             val nextSec = if (maxSec <= minSec) minSec else Random.nextInt(minSec, maxSec + 1)
+
             scheduleNextBoost(nextSec * 20L)
         }, delayTicks)
+    }
+
+    private fun makeBoost(name: String, w: World, loc: Location): ItemDisplay? {
+        val display: ItemDisplay = w.spawn(loc, ItemDisplay::class.java)
+
+        when (name) {
+            "bomb" -> {
+                display.setItemStack(ItemStack(Material.GOLDEN_AXE, 1))
+                display.addScoreboardTag("bomb")
+            }
+            "bacillus" -> {
+                display.setItemStack(ItemStack(Material.AMETHYST_SHARD, 1))
+                display.addScoreboardTag("bacillus")
+            }
+            else -> {
+                display.remove()
+                return null
+            }
+        }
+
+        display.itemDisplayTransform = ItemDisplay.ItemDisplayTransform.FIXED
+        display.isGlowing = true
+
+        return display
     }
 
     private fun startMainTimer(worldName: String) {
@@ -1384,7 +1434,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         player.teleport(loc)
     }
 
-    private fun pickTeamSpawnLocation(team: Int?, world: World): org.bukkit.Location? {
+    private fun pickTeamSpawnLocation(team: Int?, world: World): Location? {
         if (team == null) return null
         val points = teamSpawns[team] ?: return null
         if (points.isEmpty()) return null
@@ -1393,7 +1443,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val fallback = world.spawnLocation
         val yaw = chosen.yaw ?: fallback.yaw
         val pitch = chosen.pitch ?: fallback.pitch
-        return org.bukkit.Location(world, chosen.x, chosen.y, chosen.z, yaw, pitch)
+        return Location(world, chosen.x, chosen.y, chosen.z, yaw, pitch)
     }
     private fun createBossBar() {
         removeBossBar()
@@ -1430,7 +1480,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val uuid = player.uniqueId
         if (spectators.contains(uuid)) {
             // Ensure spectator mode is applied (world gamemode may override on teleport).
-            player.gameMode = org.bukkit.GameMode.SPECTATOR
+            player.gameMode = GameMode.SPECTATOR
             player.isCollidable = false
             ensureBossBarsCreated()
             removeFromAllBossBars(player)
@@ -1438,7 +1488,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             
             Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
                 if (spectators.contains(uuid)) {
-                    player.gameMode = org.bukkit.GameMode.SPECTATOR
+                    player.gameMode = GameMode.SPECTATOR
                     player.isCollidable = false
                 }
             }, 1L)
@@ -1474,7 +1524,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         )
 
         // Remove from queue/lobby UI if present.
-        runCatching { ru.joutak.minigames.managers.MatchmakingManager.removePlayer(player) }
+        runCatching { MatchmakingManager.removePlayer(player) }
 
         player.inventory.clear()
         player.activePotionEffects.forEach { effect ->
@@ -1496,11 +1546,11 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         spectatorBossBar?.addPlayer(player)
 
         // Multiverse can enforce world gamemode on teleport; apply spectator mode after teleport (and once more next tick).
-        player.gameMode = org.bukkit.GameMode.SPECTATOR
+        player.gameMode = GameMode.SPECTATOR
         player.isCollidable = false
         Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
             if (spectators.contains(uuid)) {
-                player.gameMode = org.bukkit.GameMode.SPECTATOR
+                player.gameMode = GameMode.SPECTATOR
                 player.isCollidable = false
             }
         }, 1L)
@@ -1509,7 +1559,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
         val sb = Bukkit.getScoreboardManager().newScoreboard
         val obj = sb.registerNewObjective(
             "gametimer",
-            org.bukkit.scoreboard.Criteria.DUMMY,
+            Criteria.DUMMY,
             Component.text("Splatoon", NamedTextColor.GOLD)
         )
         obj.displaySlot = DisplaySlot.SIDEBAR
@@ -1698,7 +1748,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
             val sb = Bukkit.getScoreboardManager().newScoreboard
             val obj = sb.registerNewObjective(
                 "gametimer",
-                org.bukkit.scoreboard.Criteria.DUMMY,
+                Criteria.DUMMY,
                 Component.text("Splatoon", NamedTextColor.GOLD)
             )
             obj.displaySlot = DisplaySlot.SIDEBAR
