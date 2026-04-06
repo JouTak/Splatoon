@@ -1157,7 +1157,7 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
 
     private fun startBoostTimer() {
-        if (!SplatoonSettings.boostsEnabled) return
+        if (!SplatoonSettings.boostsEnabled || SplatoonSettings.boostChances.isEmpty()) return
         scheduleNextBoost(0L)
     }
 
@@ -1176,12 +1176,17 @@ class Game(var worldName: String, val arenaId: String, private val teamSpawns: M
 
                 val loc = Location(w, rLoc[0], rLoc[1], rLoc[2])
 
-                //TODO: Сделать нормальный выбор рандома, поддерживающий любое кол-во разных бустов.
+                var rName = ""
 
-                val rName: String = if (Random.nextInt(100) < 50) {
-                    "bomb"
-                } else {
-                    "bacillus"
+                val rIndex = Random.nextInt(SplatoonSettings.boostChancesSum)
+
+                for (name in SplatoonSettings.boostChances.keys) {
+                    val range = SplatoonSettings.boostChances[name]!!
+
+                    if ((range[0] <= rIndex) && (rIndex <= range[1])) {
+                        rName = name
+                        break
+                    }
                 }
 
                 val display = makeBoost(rName, w, loc)

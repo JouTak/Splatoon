@@ -84,8 +84,10 @@ boosts:
   min_interval_seconds: 10
   max_interval_seconds: 30
 
-  # Chance of Bomb vs Bacillus
-  bomb_percent: 70
+  # Chances of all boosts to spawn (a weights system)
+  chances:
+    bomb: 5
+    bacillus: 5
 
   # Drop points in the arena world
   locations:
