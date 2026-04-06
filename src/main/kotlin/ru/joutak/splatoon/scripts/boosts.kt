@@ -2,16 +2,13 @@ package ru.joutak.splatoon.scripts
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextColor
-import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
-import org.bukkit.World
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import ru.joutak.splatoon.config.SplatoonSettings
 
-fun giveSplatBomb(world: World) {
+fun giveSplatBomb() : ItemStack {
     val item = ItemStack(Material.GOLDEN_AXE, 1)
     val meta = item.itemMeta
     val plugin = SplatoonPlugin.instance
@@ -20,11 +17,11 @@ fun giveSplatBomb(world: World) {
     )
     meta.persistentDataContainer.set(NamespacedKey(plugin, "Bomb"), PersistentDataType.BOOLEAN, true)
     item.itemMeta = meta
-    val loc = SplatoonSettings.boostLocations.random()
-    world.dropItem(Location(world, loc[0], loc[1], loc[2]), item)
+
+    return item
 }
 
-fun giveBacillus(world: World) {
+fun giveBacillus() : ItemStack {
     val item = ItemStack(Material.AMETHYST_SHARD, 1)
     val meta = item.itemMeta
     val plugin = SplatoonPlugin.instance
@@ -33,6 +30,6 @@ fun giveBacillus(world: World) {
     )
     meta.persistentDataContainer.set(NamespacedKey(plugin, "Bacillus"), PersistentDataType.BOOLEAN, true)
     item.itemMeta = meta
-    val loc = SplatoonSettings.boostLocations.random()
-    world.dropItem(Location(world, loc[0], loc[1], loc[2]), item)
+
+    return item
 }

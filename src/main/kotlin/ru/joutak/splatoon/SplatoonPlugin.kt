@@ -84,7 +84,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
         Bukkit.getPluginManager().registerEvents(SpectatorWorldTeleportGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(CeremonyMoveListener(), this)
-        Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
+        Bukkit.getPluginManager().registerEvents(BoostPickupListener(), this)
 
         val cmd = getCommand("splatoon")
         if (cmd != null) {
