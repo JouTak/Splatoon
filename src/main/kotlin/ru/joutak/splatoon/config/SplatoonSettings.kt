@@ -17,7 +17,7 @@ data class ArenaSettings(
     val templateWorld: String,
     val teamCount: Int,
     val playersPerTeam: Int,
-    val spawns: Map<Int, List<SpawnPoint>>,
+    val spawns: List<SpawnPoint>,
     /** How many parallel queue instances should be created for this arena template. */
     val instances: Int
 )
@@ -178,6 +178,22 @@ object SplatoonSettings {
 
     var boostChancesSum: Int = 0
         private set
+
+    var speedupOnIceEnabled: Boolean = true
+        private set
+
+    var speedupOnIceAmplifier: Int = 2
+        private set
+
+    var jumpPadJumpAmplifier: Int = 5
+        private set
+
+    var jumpPadEffectDuration: Int = 200
+        private set
+
+    var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
+        private set
+
 
     val boostLocations: MutableList<List<Double>> = mutableListOf()
     val boostChances: MutableMap<String, List<Int>> = mutableMapOf()
@@ -375,6 +391,13 @@ object SplatoonSettings {
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
 
+        speedupOnIceEnabled = config.getBoolean("movement.speedup_on_ice.enabled", true)
+        speedupOnIceAmplifier = config.getInt("movement.speedup_on_ice.amplifier", 2).coerceIn(0, 255)
+        jumpPadJumpAmplifier = config.getInt("movement.jump_pads.jump_amplifier", 5).coerceIn(0, 255)
+        jumpPadEffectDuration = config.getInt("movement.jump_pads.effect_duration", 200)
+        jumpPadBlockType = config.getString("movement.jump_pads.jump_pad_block_type", "LIME_CONCRETE_POWDER") ?: "LIME_CONCRETE_POWDER"
+
+
         arenas.clear()
         arenasById.clear()
 
@@ -423,29 +446,24 @@ object SplatoonSettings {
         }
     }
 
-    private fun parseArenaSpawns(raw: Any?, logger: Logger): Map<Int, List<SpawnPoint>> {
-        val result = mutableMapOf<Int, List<SpawnPoint>>()
-        val map = raw as? Map<*, *> ?: return result
+    private fun parseArenaSpawns(raw: Any?, logger: Logger): List<SpawnPoint> {
+        val result = mutableListOf<SpawnPoint>()
 
-        for ((kAny, vAny) in map) {
-            val team = parseTeamKey(kAny) ?: continue
-            val pointsList = vAny as? List<*> ?: continue
+        val list = raw as? List<*> ?: return result.toList()
 
-            val points = mutableListOf<SpawnPoint>()
-            for (pAny in pointsList) {
-                val sp = parseSpawnPoint(pAny)
-                if (sp != null) points.add(sp)
+        for (pAny in list) {
+            val sp = parseSpawnPoint(pAny)
+
+            if (sp != null) {
+                result.add(sp)
             }
-            if (points.isEmpty()) continue
-
-            result[team] = points.toList()
         }
 
-        if (map.isNotEmpty() && result.isEmpty()) {
+        if (list.isNotEmpty() && result.isEmpty()) {
             logger.warning("Arena spawns section exists but no valid points were parsed.")
         }
 
-        return result.toMap()
+        return result.toList()
     }
 
     private fun parseSpawnPoint(raw: Any?): SpawnPoint? {

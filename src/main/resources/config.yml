@@ -108,6 +108,14 @@ movement:
     invisibility_amplifier: 1
     effect_duration_ticks: 2
     task_period_ticks: 1
+  speedup_on_ice:
+    enabled: true
+    amplifier: 2
+
+  jump_pads:
+    jump_pad_block_type: LIME_CONCRETE_POWDER
+    jump_amplifier: 5
+    effect_duration: 200
 
 arenas:
   - id: arena-1
@@ -117,13 +125,10 @@ arenas:
     teamCount: 2
     playersPerTeam: 3
 
-    # Random spawn points per team.
-    # Team IDs are the same as in-game team indices: 0..(teamCount-1)
+    # Random spawn points for everyone.
     # Point format: [x, y, z, yaw(optional), pitch(optional)]
     spawns:
-      "0":
-        - [10.5, 65.0, 10.5, 90.0, 0.0]
-        - [12.5, 65.0, 10.5, 90.0, 0.0]
-      "1":
-        - [-10.5, 65.0, -10.5, -90.0, 0.0]
-        - [-12.5, 65.0, -10.5, -90.0, 0.0]
+      - [10.5, 65.0, 10.5, 90.0, 0.0]
+      - [12.5, 65.0, 10.5, 90.0, 0.0]
+      - [-10.5, 65.0, -10.5, -90.0, 0.0]
+      - [-12.5, 65.0, -10.5, -90.0, 0.0]

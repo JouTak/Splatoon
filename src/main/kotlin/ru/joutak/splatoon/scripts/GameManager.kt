@@ -303,7 +303,7 @@ object GameManager {
 
         arenas[worldName] = world
 
-        val game = Game(worldName, baseArenaId, arenaSettings?.spawns ?: emptyMap())
+        val game = Game(worldName, baseArenaId, arenaSettings?.spawns ?: emptyList())
 
         // Snapshot tournament keys as early as possible (if instance provides them).
         for (teamIndex in 0..3) {
