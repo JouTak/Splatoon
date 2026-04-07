@@ -69,7 +69,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
         val game = GameManager.playerGame[player.uniqueId]
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
-        if (game == null && !isAdminUse) return
+        val isInLobby = GameManager.isLobbyWorld(player.world)
+        if (game == null && !isAdminUse && !isInLobby) return
 
         // Полностью запрещаем ванильное использование арбалета (без натяжения/звуков/перезарядки)
         event.setUseInteractedBlock(Event.Result.DENY)
@@ -175,6 +176,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
         val paintTeam = if (game != null) {
             game.getAmmoTeam(player.uniqueId) ?: baseTeam
+        } else if(GameManager.isLobbyWorld(player.world)) {
+            GameManager.getSelectedTeam(player)
         } else {
             GameManager.getAdminAmmoTeam(player.uniqueId, baseTeam)
         }

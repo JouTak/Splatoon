@@ -30,7 +30,7 @@ dependencies {
     compileOnly(libs.kotlin)
     compileOnly(libs.paper)
     compileOnly("com.onarandombox.multiversecore:multiverse-core:4.3.14")
-    implementation("ru.joutak:minigamesapi:3.4.2-123")
+    implementation("ru.joutak:minigamesapi:3.4.3-128")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.5.7")
 }
 

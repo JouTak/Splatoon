@@ -6,6 +6,7 @@ import org.bukkit.Bukkit.getWorld
 import org.bukkit.attribute.Attribute
 import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffectType
+import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.minigames.domain.GameInstance
 import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.splatoon.SplatoonPlugin
@@ -33,6 +34,8 @@ object GameManager {
     )
 
     private val ceremonyBoundsByPlayer: MutableMap<UUID, CeremonyBounds> = mutableMapOf()
+
+    private val playerSelectedTeam = mutableMapOf<UUID, Int>()
 
     fun registerTemplateWorld(worldName: String) {
         templateWorlds.add(worldName)
@@ -222,6 +225,10 @@ object GameManager {
         return false
     }
 
+    fun isLobbyWorld(world: World): Boolean {
+        return world.name == SplatoonSettings.lobbyWorldName
+    }
+
     fun cleanupOrphanedWorlds() {
         val loaded = Bukkit.getWorlds().map { it.name }.toSet()
         loaded.forEach { worldName ->
@@ -393,4 +400,15 @@ object GameManager {
 
         cleanupOrphanedWorlds()
     }
+
+    fun getSelectedTeam(player: Player): Int {
+        try{
+            val apiTeam = MiniGamesAPI.getPlayerTeamInLobby(player)
+            if (apiTeam != null) {
+                return apiTeam
+            }
+        } catch (_: Exception) {}
+        return playerSelectedTeam[player.uniqueId] ?: 0
+    }
+
 }
