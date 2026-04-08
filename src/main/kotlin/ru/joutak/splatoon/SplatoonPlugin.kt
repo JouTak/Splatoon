@@ -87,7 +87,6 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(SpectatorWorldTeleportGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(CeremonyMoveListener(), this)
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(), this)
-        Bukkit.getPluginManager().registerEvents(BoostPickupListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
         Bukkit.getPluginManager().registerEvents(JumpPadListener(), this)
 

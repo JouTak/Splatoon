@@ -35,6 +35,7 @@ import org.bukkit.scoreboard.Team
 import org.bukkit.util.Vector
 import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.minigames.config.ConfigKeys
+import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.minigames.results.model.MatchContext
 import ru.joutak.minigames.results.model.MatchResult
 import ru.joutak.minigames.results.model.Metric
@@ -1441,10 +1442,6 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         player.teleport(loc)
     }
 
-    private fun pickTeamSpawnLocation(team: Int?, world: World): Location? {
-        if (team == null) return null
-        val points = teamSpawns[team] ?: return null
-        if (points.isEmpty()) return null
     private fun pickSpawnLocation(world: World, uuid: UUID): org.bukkit.Location {
         if (spawns.isEmpty()) return world.spawnLocation
 
@@ -1512,7 +1509,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             ensureBossBarsCreated()
             removeFromAllBossBars(player)
             spectatorBossBar?.addPlayer(player)
-            
+
             Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
                 if (spectators.contains(uuid)) {
                     player.gameMode = GameMode.SPECTATOR

@@ -61,11 +61,16 @@ class BoostPickupListener : Listener {
     }
 
     private fun delete(display: Display, game: Game) {
+        var toRemove: List<Double> = emptyList()
+
         for (key in game.layingBoosts.keys) {
             if (display.uniqueId == game.layingBoosts[key]!!.uniqueId) {
                 display.remove()
-                game.layingBoosts.remove(key)
+                toRemove = key
+                break
             }
         }
+
+        game.layingBoosts.remove(toRemove)
     }
 }
