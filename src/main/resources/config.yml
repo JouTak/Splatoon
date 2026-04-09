@@ -107,6 +107,7 @@ movement:
     speed_amplifier: 18
     invisibility_amplifier: 1
     effect_duration_ticks: 2
+    regeneration_amplifier: 1
     task_period_ticks: 1
   speedup_on_ice:
     enabled: true

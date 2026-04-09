@@ -170,6 +170,9 @@ object SplatoonSettings {
     var sneakOnInkInvisibilityAmplifier: Int = 1
         private set
 
+    var sneakOnInkRegenerationAmplifier: Int = 1
+        private set
+
     var sneakOnInkEffectDurationTicks: Int = 2
         private set
 
@@ -388,6 +391,7 @@ object SplatoonSettings {
         sneakOnInkScanStepBlocks = config.getDouble("movement.sneak_on_ink.scan_step_blocks", 0.1).coerceAtLeast(0.01)
         sneakOnInkSpeedAmplifier = config.getInt("movement.sneak_on_ink.speed_amplifier", 18).coerceIn(0, 255)
         sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
+        sneakOnInkRegenerationAmplifier = config.getInt("movement.sneak_on_ink.regeneration_amplifier", 1).coerceIn(-1, 255)
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
 
