@@ -125,6 +125,9 @@ object SplatoonSettings {
     var gunPaintRadius: Double = 1.5
         private set
 
+    var gunPaintInLobbyRadius: Double = 1.0
+        private set
+
     var bombPaintRadius: Double = 5.0
         private set
 
@@ -344,6 +347,7 @@ object SplatoonSettings {
         bombHorizontalMultiplier = config.getDouble("weapons.bomb.horizontal_multiplier", 0.85).coerceIn(0.05, 5.0)
         bombUpwardBoost = config.getDouble("weapons.bomb.upward_boost", 0.55).coerceIn(-5.0, 5.0)
         gunPaintRadius = config.getDouble("weapons.gun.paint_radius", 1.5)
+        gunPaintInLobbyRadius = config.getDouble("weapons.gun.paint_in_lobby_radius", 1.0)
         bombPaintRadius = config.getDouble("weapons.bomb.paint_radius", 5.0)
         gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)
         bombKillPaintRadius = config.getDouble("weapons.bomb.kill_paint_radius", 5.0)

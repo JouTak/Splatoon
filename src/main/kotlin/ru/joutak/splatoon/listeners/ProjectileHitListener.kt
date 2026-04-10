@@ -57,7 +57,7 @@ class ProjectileHitListener : Listener {
             if (hitBlock != null && hitFace != null) {
                 val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt() ?: return
                 val center = hitBlock.getRelative(hitFace).location
-                val radius = SplatoonSettings.gunPaintRadius
+                val radius = SplatoonSettings.gunPaintInLobbyRadius
 
                 safePaintInRadius(center, entity.world, radius, paintTeam)
                 entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
