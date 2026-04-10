@@ -408,7 +408,7 @@ object GameManager {
                 return apiTeam
             }
         } catch (_: Exception) {}
-        return playerSelectedTeam[player.uniqueId] ?: 0
+        return playerSelectedTeam[player.uniqueId] ?: -1
     }
 
 }
