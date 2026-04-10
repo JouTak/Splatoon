@@ -56,11 +56,37 @@ class ProjectileHitListener : Listener {
 
             if (hitBlock != null && hitFace != null) {
                 val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt() ?: return
-                val center = hitBlock.getRelative(hitFace).location
                 val radius = SplatoonSettings.gunPaintInLobbyRadius
+                if (radius >= 0.6){
+                    val center = hitBlock.getRelative(hitFace).location
+                    safePaintInRadius(center, entity.world, radius, paintTeam)
+                    entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
+                } else{
+                    val targetBlock = hitBlock
 
-                safePaintInRadius(center, entity.world, radius, paintTeam)
-                entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
+                    val newMat = when (paintTeam) {
+                        0 -> Material.RED_CONCRETE
+                        1 -> Material.YELLOW_CONCRETE
+                        2 -> Material.GREEN_CONCRETE
+                        3 -> Material.BLUE_CONCRETE
+                        -1 -> Material.WHITE_CONCRETE
+                        else -> Material.WHITE_CONCRETE
+                    }
+
+                    val paintable = setOf(
+                        Material.WHITE_CONCRETE,
+                        Material.RED_CONCRETE,
+                        Material.YELLOW_CONCRETE,
+                        Material.GREEN_CONCRETE,
+                        Material.BLUE_CONCRETE
+                    )
+
+                    if (paintable.contains(targetBlock.type) && targetBlock.type != newMat) {
+                        targetBlock.type = newMat
+                        entity.world.playSound(targetBlock.location, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
+                    }
+                }
+
             }
             entity.remove()
             return
@@ -315,6 +341,14 @@ class ProjectileHitListener : Listener {
             Material.GREEN_CONCRETE,
             Material.BLUE_CONCRETE
         )
+
+        if (radius <= 0.6){
+            val block = center.block
+            if (paintable.contains(block.type) && block.type != newMat) {
+                block.type = newMat
+            }
+            return
+        }
 
         for (x in roundFromZero(center.x - radius)..roundFromZero(center.x + radius)) {
             for (y in roundFromZero(center.y - radius)..roundFromZero(center.y + radius)) {
