@@ -12,6 +12,7 @@ import org.bukkit.event.Listener
 import org.bukkit.event.entity.ProjectileHitEvent
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.NamedTextColor
+import org.bukkit.Location
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.config.SplatoonSettings
@@ -38,6 +39,7 @@ class ProjectileHitListener : Listener {
             entity.remove()
             return
         }
+
         if (!entity.hasMetadata("paintKey")) return
 
         runCatching { entity.passengers.toList().forEach { it.remove() } }
@@ -45,6 +47,24 @@ class ProjectileHitListener : Listener {
         val shooterUuid = getShooterUuid(entity.getMetadata("shooterId").firstOrNull()?.asString())
         val shooter = if (shooterUuid != null) Bukkit.getPlayer(shooterUuid) else null
         if (shooter == null) return
+
+        val isInLobby = GameManager.isLobbyWorld(shooter.world)
+
+        if (isInLobby) {
+            val hitBlock = event.hitBlock
+            val hitFace = event.hitBlockFace
+
+            if (hitBlock != null && hitFace != null) {
+                val paintTeam = entity.getMetadata("paintTeam").firstOrNull()?.asInt() ?: return
+                val center = hitBlock.getRelative(hitFace).location
+                val radius = SplatoonSettings.gunPaintRadius
+
+                safePaintInRadius(center, entity.world, radius, paintTeam)
+                entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
+            }
+            entity.remove()
+            return
+        }
 
         val game = GameManager.playerGame[shooter.uniqueId] ?: return
         val shooterTeam = game.commands[shooter.uniqueId] ?: return
@@ -278,6 +298,43 @@ class ProjectileHitListener : Listener {
             n > 0 -> ceil(n).toInt()
             n < 0 -> floor(n).toInt()
             else -> n.toInt()
+        }
+    }
+
+    private fun safePaintInRadius(
+        center: Location,
+        world: World,
+        radius: Double,
+        paintTeam: Int,
+    ) {
+        val newMat = getTeamMaterial(paintTeam)
+        val paintable = setOf(
+            Material.WHITE_CONCRETE,
+            Material.RED_CONCRETE,
+            Material.YELLOW_CONCRETE,
+            Material.GREEN_CONCRETE,
+            Material.BLUE_CONCRETE
+        )
+
+        for (x in roundFromZero(center.x - radius)..roundFromZero(center.x + radius)) {
+            for (y in roundFromZero(center.y - radius)..roundFromZero(center.y + radius)) {
+                for (z in roundFromZero(center.z - radius)..roundFromZero(center.z + radius)) {
+                    val block = world.getBlockAt(x, y, z)
+                    if (paintable.contains(block.type) && block.type != newMat) {
+                        block.type = newMat
+                    }
+                }
+            }
+        }
+    }
+
+    private fun getTeamMaterial(team: Int): Material {
+        return when (team) {
+            0 -> Material.RED_CONCRETE
+            1 -> Material.YELLOW_CONCRETE
+            2 -> Material.GREEN_CONCRETE
+            3 -> Material.BLUE_CONCRETE
+            else -> Material.WHITE_CONCRETE
         }
     }
 }

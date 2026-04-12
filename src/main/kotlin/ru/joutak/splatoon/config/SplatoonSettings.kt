@@ -176,6 +176,9 @@ object SplatoonSettings {
     var sneakOnInkTaskPeriodTicks: Long = 1
         private set
 
+    var boostChancesSum: Int = 0
+        private set
+
     var speedupOnIceEnabled: Boolean = true
         private set
 
@@ -193,6 +196,7 @@ object SplatoonSettings {
 
 
     val boostLocations: MutableList<List<Double>> = mutableListOf()
+    val boostChances: MutableMap<String, List<Int>> = mutableMapOf()
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
     val arenasById: MutableMap<String, ArenaSettings> = mutableMapOf()
@@ -358,6 +362,21 @@ object SplatoonSettings {
         if (boostLocations.isEmpty()) {
             boostLocations.add(listOf(0.0, 0.0, 0.0))
             logger.warning("boosts.locations is empty; using fallback [0,0,0]")
+        }
+
+        boostChances.clear()
+        val bombChance = config.getInt("boosts.chances.bomb", 0).coerceAtLeast(0)
+        if (bombChance != 0) {
+            boostChances.put("bomb", listOf(boostChancesSum, boostChancesSum + bombChance))
+            boostChancesSum = boostChancesSum + bombChance + 1
+        }
+        val bacillusChance = config.getInt("boosts.chances.bacillus", 0).coerceAtLeast(0)
+        if (bacillusChance != 0) {
+            boostChances.put("bacillus", listOf(boostChancesSum, boostChancesSum + bacillusChance))
+            boostChancesSum = boostChancesSum + bacillusChance + 1
+        }
+        if (boostChances.isEmpty()) {
+            logger.warning("Map of boost chances is empty: whether there is no chances in config or all chances are 0 or less. Boosts won't be enabled.")
         }
 
         bacillusDurationSeconds = max(0, config.getInt("bacillus.duration_seconds", 5))
