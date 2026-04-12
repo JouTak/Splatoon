@@ -68,6 +68,7 @@ weapons:
     # If true, shots fly straight (no gravity), like wind charges
     disable_gravity: true
     paint_radius: 1.5
+    paint_in_lobby_radius: 0.5
     kill_paint_radius: 3.0
   bomb:
     velocity: 1.1
