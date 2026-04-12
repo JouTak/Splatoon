@@ -90,6 +90,19 @@ class PlayerToggleSneakListener : Listener {
                         )
                     )
                 }
+
+                if (SplatoonSettings.sneakOnInkRegenerationAmplifier >= 0){
+                    player.addPotionEffect(
+                        PotionEffect(
+                            PotionEffectType.REGENERATION,
+                            SplatoonSettings.sneakOnInkEffectDurationTicks,
+                            SplatoonSettings.sneakOnInkRegenerationAmplifier,
+                            false,
+                            false,
+                            true
+                        )
+                    )
+                }
             }
         }, 0L, SplatoonSettings.sneakOnInkTaskPeriodTicks)
 
