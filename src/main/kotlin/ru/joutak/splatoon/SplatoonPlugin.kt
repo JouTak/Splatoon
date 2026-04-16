@@ -1,6 +1,7 @@
 package ru.joutak.splatoon
 
 import org.bukkit.Bukkit
+import org.bukkit.Location
 import org.bukkit.plugin.java.JavaPlugin
 import ru.joutak.minigames.MiniGamesCore
 import ru.joutak.minigames.domain.GameInstanceConfig
@@ -18,10 +19,12 @@ import ru.joutak.splatoon.listeners.PlayerToggleSneakListener
 import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.JumpPadListener
+import ru.joutak.splatoon.listeners.LobbyGunPickupListener
 import ru.joutak.splatoon.listeners.SpectatorWorldTeleportGuardListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
 import ru.joutak.splatoon.scripts.GameManager
+import ru.joutak.splatoon.scripts.LobbyGunStand
 import java.io.File
 
 class SplatoonPlugin : JavaPlugin() {
@@ -89,6 +92,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(BoostPickupListener(), this)
         Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
         Bukkit.getPluginManager().registerEvents(JumpPadListener(), this)
+        Bukkit.getPluginManager().registerEvents(LobbyGunPickupListener(), this)
 
 
         val cmd = getCommand("splatoon")
@@ -97,6 +101,24 @@ class SplatoonPlugin : JavaPlugin() {
             cmd.setExecutor(executor)
             cmd.tabCompleter = executor
         }
+
+        server.scheduler.runTaskTimer(this, Runnable {
+            val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+            if (lobbyWorld != null) {
+                val locations = SplatoonSettings.lobbyGunLocations.mapNotNull {coords ->
+                    if(coords.size >= 3){
+                        Location(lobbyWorld, coords[0], coords[1], coords[2])
+                    } else null
+                }
+                if (locations.isNotEmpty()) {
+                    LobbyGunStand.spawnAll(locations)
+                } else {
+                    logger.info("No gun stand locations configured, skipping spawn")
+                }
+            } else {
+                logger.warning("Lobby world '${SplatoonSettings.lobbyWorldName}' not found! Gun stands not spawned.")
+            }
+        }, 20L, 20L)
 
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 
@@ -111,5 +133,7 @@ class SplatoonPlugin : JavaPlugin() {
 
     override fun onDisable() {
         GameManager.shutdownAllGames()
+
+        LobbyGunStand.removeAll()
     }
 }

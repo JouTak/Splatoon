@@ -1,6 +1,8 @@
 package ru.joutak.splatoon.config
 
+import org.bukkit.Location
 import org.bukkit.configuration.file.YamlConfiguration
+import java.lang.reflect.AccessFlag
 import java.util.logging.Logger
 import kotlin.math.max
 
@@ -200,6 +202,7 @@ object SplatoonSettings {
     var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
         private set
 
+    val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
 
     val boostLocations: MutableList<List<Double>> = mutableListOf()
     val boostChances: MutableMap<String, List<Int>> = mutableMapOf()
@@ -360,6 +363,16 @@ object SplatoonSettings {
         boostsMaxIntervalSeconds = max(boostsMinIntervalSeconds, config.getInt("boosts.max_interval_seconds", 39))
         boostsBombPercent = config.getInt("boosts.bomb_percent", 70).coerceIn(0, 100)
 
+        lobbyGunLocations.clear()
+        val gunStandList = config.getList("lobby.gun_stand_locations") ?: emptyList<Any>()
+        for (item in gunStandList){
+            val coord = parseCoord3(item) ?: continue
+            lobbyGunLocations.add(coord)
+        }
+        if (lobbyGunLocations.isEmpty()){
+            logger.info("lobby.gun_stand_locations is empty; gun stands will not be spawned")
+        }
+
         boostLocations.clear()
         val locList = config.getList("boosts.locations") ?: config.getList("boost_locations") ?: emptyList<Any>()
         for (item in locList) {
@@ -370,6 +383,8 @@ object SplatoonSettings {
             boostLocations.add(listOf(0.0, 0.0, 0.0))
             logger.warning("boosts.locations is empty; using fallback [0,0,0]")
         }
+
+
 
         boostChances.clear()
         val bombChance = config.getInt("boosts.chances.bomb", 0).coerceAtLeast(0)
@@ -389,6 +404,7 @@ object SplatoonSettings {
         bacillusDurationSeconds = max(0, config.getInt("bacillus.duration_seconds", 5))
         bacillusRangeBlocks = config.getDouble("bacillus.range_blocks", 3.2).coerceAtLeast(0.0)
         bacillusCooldownMs = max(0, config.getLong("bacillus.cooldown_ms", 250))
+
 
         sneakOnInkEnabled = config.getBoolean("movement.sneak_on_ink.enabled", true)
         sneakOnInkScanSteps = max(1, config.getInt("movement.sneak_on_ink.scan_steps", 3))

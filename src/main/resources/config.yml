@@ -2,6 +2,8 @@
 
 lobby:
   world: lobby
+  gun_stand_locations:
+    - [0, 120, 0]
 
 game:
   # Match duration in seconds
