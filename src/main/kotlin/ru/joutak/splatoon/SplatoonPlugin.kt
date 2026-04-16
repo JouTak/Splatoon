@@ -102,7 +102,7 @@ class SplatoonPlugin : JavaPlugin() {
             cmd.tabCompleter = executor
         }
 
-        server.scheduler.runTaskTimer(this, Runnable {
+        server.scheduler.runTaskLater(this, Runnable {
             val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
             if (lobbyWorld != null) {
                 val locations = SplatoonSettings.lobbyGunLocations.mapNotNull {coords ->
@@ -118,7 +118,7 @@ class SplatoonPlugin : JavaPlugin() {
             } else {
                 logger.warning("Lobby world '${SplatoonSettings.lobbyWorldName}' not found! Gun stands not spawned.")
             }
-        }, 20L, 20L)
+        }, 20L)
 
         logger.info("Плагин ${pluginMeta.name} версии ${pluginMeta.version} включен!")
 

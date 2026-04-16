@@ -9,6 +9,7 @@ import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.commands.AdminItems
+import ru.joutak.splatoon.config.SplatoonSettings
 
 object LobbyGunStand {
     private val displays = mutableMapOf<Location, ItemDisplay>()
@@ -34,6 +35,13 @@ object LobbyGunStand {
     fun removeAll() {
         displays.values.forEach { it.remove() }
         displays.clear()
+
+        val lobbyWorld = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
+        if (lobbyWorld != null) {
+            lobbyWorld.entities.filterIsInstance<ItemDisplay>()
+                .filter { it.scoreboardTags.contains("lobby_gun_stand") }
+                .forEach { it.remove() }
+        }
     }
 
     fun tryPickup(player: Player, location: Location): Boolean {
