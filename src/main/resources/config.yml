@@ -68,6 +68,7 @@ weapons:
     # If true, shots fly straight (no gravity), like wind charges
     disable_gravity: true
     paint_radius: 1.5
+    paint_in_lobby_radius: 0.5
     kill_paint_radius: 3.0
   bomb:
     velocity: 1.1
@@ -107,6 +108,7 @@ movement:
     speed_amplifier: 18
     invisibility_amplifier: 1
     effect_duration_ticks: 2
+    regeneration_amplifier: 1
     task_period_ticks: 1
   speedup_on_ice:
     enabled: true

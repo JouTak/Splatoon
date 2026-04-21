@@ -125,6 +125,9 @@ object SplatoonSettings {
     var gunPaintRadius: Double = 1.5
         private set
 
+    var gunPaintInLobbyRadius: Double = 1.0
+        private set
+
     var bombPaintRadius: Double = 5.0
         private set
 
@@ -168,6 +171,9 @@ object SplatoonSettings {
         private set
 
     var sneakOnInkInvisibilityAmplifier: Int = 1
+        private set
+
+    var sneakOnInkRegenerationAmplifier: Int = 1
         private set
 
     var sneakOnInkEffectDurationTicks: Int = 2
@@ -344,6 +350,7 @@ object SplatoonSettings {
         bombHorizontalMultiplier = config.getDouble("weapons.bomb.horizontal_multiplier", 0.85).coerceIn(0.05, 5.0)
         bombUpwardBoost = config.getDouble("weapons.bomb.upward_boost", 0.55).coerceIn(-5.0, 5.0)
         gunPaintRadius = config.getDouble("weapons.gun.paint_radius", 1.5)
+        gunPaintInLobbyRadius = config.getDouble("weapons.gun.paint_in_lobby_radius", 1.0).coerceAtLeast(0.5)
         bombPaintRadius = config.getDouble("weapons.bomb.paint_radius", 5.0)
         gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)
         bombKillPaintRadius = config.getDouble("weapons.bomb.kill_paint_radius", 5.0)
@@ -388,6 +395,7 @@ object SplatoonSettings {
         sneakOnInkScanStepBlocks = config.getDouble("movement.sneak_on_ink.scan_step_blocks", 0.1).coerceAtLeast(0.01)
         sneakOnInkSpeedAmplifier = config.getInt("movement.sneak_on_ink.speed_amplifier", 18).coerceIn(0, 255)
         sneakOnInkInvisibilityAmplifier = config.getInt("movement.sneak_on_ink.invisibility_amplifier", 1).coerceIn(-1, 255)
+        sneakOnInkRegenerationAmplifier = config.getInt("movement.sneak_on_ink.regeneration_amplifier", 1).coerceIn(-1, 255)
         sneakOnInkEffectDurationTicks = max(1, config.getInt("movement.sneak_on_ink.effect_duration_ticks", 2))
         sneakOnInkTaskPeriodTicks = max(1, config.getLong("movement.sneak_on_ink.task_period_ticks", 1))
 
