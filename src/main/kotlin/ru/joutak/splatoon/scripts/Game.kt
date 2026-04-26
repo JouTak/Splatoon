@@ -1778,7 +1778,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
             val sb = Bukkit.getScoreboardManager().newScoreboard
 
-            sb.getObjective("gametimer")?.unregister() // 💥 ВАЖНО
+            sb.getObjective("gametimer")?.unregister()
 
             val obj = sb.registerNewObjective(
                 "gametimer",
