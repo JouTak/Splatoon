@@ -52,6 +52,7 @@ import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import io.papermc.paper.scoreboard.numbers.NumberFormat
+import ru.joutak.splatoon.lang.Lang
 
 class Game(var worldName: String, val arenaId: String, private val spawns: List<SpawnPoint>) {
 
@@ -1588,7 +1589,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         val obj = sb.registerNewObjective(
             "gametimer",
             Criteria.DUMMY,
-            Component.text("Splatoon", NamedTextColor.GOLD)
+            Lang.component("scoreboard.title")
         )
         obj.displaySlot = DisplaySlot.SIDEBAR
         obj.numberFormat(NumberFormat.blank())
@@ -1822,6 +1823,10 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             }
         }
     }
+    private fun unique(text: String, index: Int): String {
+        return text + "§r".repeat(index)
+    }
+
 
     private fun updateAllPlayerScoreboards() {
         updateSpawnNameTags()
@@ -1842,10 +1847,10 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             sb.entries.forEach { entry -> sb.resetScores(entry) }
 
             var score = 15
-            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬").score = score
+            obj.getScore(unique(Lang.get("scoreboard.lines.separator"), score)).score = score
             score--
 
-            obj.getScore("§f§lСЧЕТ:").score = score
+            obj.getScore(Lang.get("scoreboard.lines.score_title")).score = score
             score--
 
             activeTeams.forEach { team ->
@@ -1859,11 +1864,21 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             score--
             val team = viewerTeam
             if (score <= 0) return@forEach
-            obj.getScore("§f§lВы: §f${teamLabel(team)}").score = score
+            obj.getScore(
+                Lang.get(
+                    "scoreboard.lines.you",
+                    "team" to teamLabel(team)
+                )
+            ).score = score
             score--
 
             if (score <= 0) return@forEach
-            obj.getScore(formatAmmoLine(uuid)).score = score
+            obj.getScore(
+                Lang.get(
+                    "scoreboard.lines.ammo",
+                    "team" to teamLabel(getAmmoTeam(uuid))
+                )
+            ).score = score
             score--
 
             if (score <= 0) return@forEach
@@ -1889,7 +1904,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                 }
             }
 
-            obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬§6").score = 0
+            obj.getScore(unique(Lang.get("scoreboard.lines.separator"), 0)).score = score
         }
     }
 
@@ -1909,25 +1924,42 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         val prefix = if (ammoTeam != null && baseTeam != null && ammoTeam != baseTeam) "§d" else "§f"
         return "${prefix}Патроны: §f${teamLabel(ammoTeam)}"
     }
-    private fun formatTeamLine(team: Int, totalPaintable: Int, viewerTeam: Int?): String {
+    private fun formatTeamLine(team: Int, total: Int, viewerTeam: Int?): String {
         val value = paintedCommand[team] ?: 0
-        val percent = if (totalPaintable <= 0) 0 else ((value.toDouble() * 100.0) / totalPaintable.toDouble()).roundToInt()
-        val marker = if (viewerTeam != null && viewerTeam == team) "\u00A76\u25B6 " else ""
-        return when (team) {
-            0 -> "${marker}\u00A7cКрасная: \u00A7f$value \u00A77(${percent}%)"
-            1 -> "${marker}\u00A7eЖелтая: \u00A7f$value \u00A77(${percent}%)"
-            2 -> "${marker}\u00A7aЗеленая: \u00A7f$value \u00A77(${percent}%)"
-            3 -> "${marker}\u00A79Синяя: \u00A7f$value \u00A77(${percent}%)"
-            else -> "${marker}\u00A7fКоманда: \u00A7f$value \u00A77(${percent}%)"
+        val percent = if (total <= 0) 0 else ((value * 100.0) / total).roundToInt()
+
+        val marker = if (viewerTeam == team) "§6▶ " else ""
+
+        val teamKey = when (team) {
+            0 -> "red"
+            1 -> "yellow"
+            2 -> "green"
+            3 -> "blue"
+            else -> "red"
         }
+
+        return Lang.get(
+            "scoreboard.team_line",
+            "marker" to marker,
+            "team" to Lang.get("scoreboard.team.$teamKey"),
+            "value" to value.toString(),
+            "percent" to percent.toString(),
+            "color" to ""
+        )
     }
 
     private fun formatPlayerContributionLine(uuid: UUID, value: Int, teamTotal: Int): String {
-        val nameRaw = Bukkit.getOfflinePlayer(uuid).name ?: "Player"
-        val name = if (nameRaw.length > 10) nameRaw.substring(0, 10) else nameRaw
-        val percent = if (teamTotal <= 0) 0 else (((value.coerceAtLeast(0)).toDouble() * 100.0) / teamTotal.toDouble()).roundToInt()
+        val name = Bukkit.getOfflinePlayer(uuid).name ?: "Player"
+        val percent = if (teamTotal <= 0) 0 else ((value * 100.0) / teamTotal).roundToInt()
         val k = kills[uuid] ?: 0
-        return "§b$name: §f$value §7(${percent}%) §c✦$k"
+
+        return Lang.get(
+            "scoreboard.player_line",
+            "player" to name.take(10),
+            "value" to value.toString(),
+            "percent" to percent.toString(),
+            "kills" to k.toString()
+        )
     }
 
     private fun ensureInkHealth(player: Player) {

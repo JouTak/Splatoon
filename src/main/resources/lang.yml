@@ -1,0 +1,26 @@
+match:
+  ready: "§aКоманды собрались!"
+
+lobby:
+  no_guns: "§eНет точек для пушек, пропускаем"
+  world_not_found: "§cМир лобби '%world%' не найден!"
+
+scoreboard:
+  title: "§6Splatoon"
+
+  lines:
+    separator: "§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+    score_title: "§f§lСЧЕТ:"
+    you: "§f§lВы: §f%team%"
+    ammo: "§fПатроны: §f%team%"
+    contribution: "§f§lВКЛАД:"
+
+  team:
+    red: "§cКрасная"
+    yellow: "§eЖелтая"
+    green: "§aЗеленая"
+    blue: "§9Синяя"
+
+  team_line: "%marker%%color%%team%: §f%value% §7(%percent%%)"
+
+  player_line: "§b%player%: §f%value% §7(%percent%%) §c✦%kills%"
