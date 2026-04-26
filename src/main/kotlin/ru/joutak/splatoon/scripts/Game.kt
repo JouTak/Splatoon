@@ -51,6 +51,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import io.papermc.paper.scoreboard.numbers.NumberFormat
 
 class Game(var worldName: String, val arenaId: String, private val spawns: List<SpawnPoint>) {
 
@@ -110,10 +111,10 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
     fun getSpectatorExpectedWorldName(): String = ceremonyWorldName ?: worldName
 
-    
+
     private var countdownLeft: Int? = null
 
-    
+
     private var cleanupStarted: Boolean = false
 
     private var timeLeft = 0
@@ -444,10 +445,10 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
 
     private fun finishCleanupNow(force: Boolean) {
-            // Always restore/teleport spectators before any world cleanup happens.
-            forceRemoveAllSpectators(forceLobby = true)
+        // Always restore/teleport spectators before any world cleanup happens.
+        forceRemoveAllSpectators(forceLobby = true)
 
-            if (cleanupStarted) return
+        if (cleanupStarted) return
         cleanupStarted = true
 
         endingCleanupTask?.cancel(); endingCleanupTask = null
@@ -1581,12 +1582,17 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
         // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
         val sb = Bukkit.getScoreboardManager().newScoreboard
+
+        sb.getObjective("gametimer")?.unregister()
+
         val obj = sb.registerNewObjective(
             "gametimer",
             Criteria.DUMMY,
             Component.text("Splatoon", NamedTextColor.GOLD)
         )
         obj.displaySlot = DisplaySlot.SIDEBAR
+        obj.numberFormat(NumberFormat.blank())
+
         player.scoreboard = sb
         playerScoreboards[uuid] = sb
         playerObjectives[uuid] = obj
@@ -1769,17 +1775,28 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     private fun createPlayerScoreboards() {
         commands.keys.forEach { uuid ->
             val player = Bukkit.getPlayer(uuid) ?: return@forEach
+
             val sb = Bukkit.getScoreboardManager().newScoreboard
+
+            sb.getObjective("gametimer")?.unregister()
+
             val obj = sb.registerNewObjective(
                 "gametimer",
                 Criteria.DUMMY,
                 Component.text("Splatoon", NamedTextColor.GOLD)
             )
+
             obj.displaySlot = DisplaySlot.SIDEBAR
+
+
+            obj.numberFormat(NumberFormat.blank())
+
             player.scoreboard = sb
+
             playerScoreboards[uuid] = sb
             playerObjectives[uuid] = obj
         }
+
         updateAllPlayerScoreboards()
     }
 
