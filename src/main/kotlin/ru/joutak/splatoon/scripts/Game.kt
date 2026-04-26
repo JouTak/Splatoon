@@ -1583,7 +1583,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         // Give the same scoreboard UI as players (without "Вы"/"ВКЛАД" details).
         val sb = Bukkit.getScoreboardManager().newScoreboard
 
-        sb.getObjective("gametimer")?.unregister() // 💥 ВАЖНО
+        sb.getObjective("gametimer")?.unregister()
 
         val obj = sb.registerNewObjective(
             "gametimer",
@@ -1788,7 +1788,6 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
             obj.displaySlot = DisplaySlot.SIDEBAR
 
-            // 🔥 ВОТ ЭТА СТРОКА УБИРАЕТ КРАСНЫЕ ЦИФРЫ
             obj.numberFormat(NumberFormat.blank())
 
             player.scoreboard = sb
