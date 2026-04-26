@@ -15,6 +15,9 @@ import net.kyori.adventure.text.format.NamedTextColor
 import org.bukkit.Location
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import org.bukkit.block.data.type.Stairs
+import org.bukkit.block.BlockFace
+import org.bukkit.block.data.Waterlogged
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
@@ -27,6 +30,12 @@ class ProjectileHitListener : Listener {
     private val ceremonyKey = "ceremonyKey"
 
     private val lastShooterHitMs = mutableMapOf<UUID, Long>()
+
+    private data class StairState(
+        val facing: BlockFace,
+        val shape: Stairs.Shape,
+        val waterlogged: Boolean
+    )
 
     @EventHandler
     fun projectileHitEvent(event: ProjectileHitEvent) {
@@ -63,26 +72,18 @@ class ProjectileHitListener : Listener {
                     entity.world.playSound(center, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
                 } else{
                     val targetBlock = hitBlock
+                    val oldState = if (isStairsBlock(hitBlock)) getStairsState(hitBlock) else null
 
-                    val newMat = when (paintTeam) {
-                        0 -> Material.RED_CONCRETE
-                        1 -> Material.YELLOW_CONCRETE
-                        2 -> Material.GREEN_CONCRETE
-                        3 -> Material.BLUE_CONCRETE
-                        -1 -> Material.WHITE_CONCRETE
-                        else -> Material.WHITE_CONCRETE
-                    }
+                    val newMat = getTeamMaterial(paintTeam, isStairsBlock(targetBlock))
 
-                    val paintable = setOf(
-                        Material.WHITE_CONCRETE,
-                        Material.RED_CONCRETE,
-                        Material.YELLOW_CONCRETE,
-                        Material.GREEN_CONCRETE,
-                        Material.BLUE_CONCRETE
-                    )
+                    val paintable = SplatoonSettings.paintableMaterials
 
                     if (paintable.contains(targetBlock.type) && targetBlock.type != newMat) {
                         targetBlock.type = newMat
+
+                        if(isStairsBlock(hitBlock) && oldState != null){
+                            applyStairState(hitBlock, oldState)
+                        }
                         entity.world.playSound(targetBlock.location, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.7f, 1.55f)
                     }
                 }
@@ -280,30 +281,42 @@ class ProjectileHitListener : Listener {
             }
         }
 
-        val paintable = setOf(
-            Material.WHITE_CONCRETE,
-            Material.RED_CONCRETE,
-            Material.YELLOW_CONCRETE,
-            Material.GREEN_CONCRETE,
-            Material.BLUE_CONCRETE
-        )
+        val paintable = SplatoonSettings.paintableMaterials
 
         val matToTeam = mutableMapOf<Material, Int>()
         game.commandColors.forEach { (team, mat) -> matToTeam[mat] = team }
 
-        val newMat = game.commandColors[paintTeam] ?: Material.WHITE_CONCRETE
+        val stairsMatToTeam = mapOf(
+            Material.RED_NETHER_BRICK_STAIRS to 0,
+            Material.RESIN_BRICK_STAIRS to 1,
+            Material.MOSSY_COBBLESTONE_STAIRS to 2,
+            Material.OXIDIZED_CUT_COPPER_STAIRS to 3
+        )
+
 
         for (b in blocks) {
             if (exclude != null && b.x == exclude.x && b.y == exclude.y && b.z == exclude.z) continue
             if (!paintable.contains(b.type)) continue
+
+            val isStairs = isStairsBlock(b)
+            val oldState = if (isStairs) getStairsState(b) else null
+            val newMat = getTeamMaterial(paintTeam, isStairs)
             if (b.type == newMat) continue
 
-            val oldTeam = matToTeam[b.type]
+            val oldTeam =  if (isStairs){
+                stairsMatToTeam[b.type]
+            } else {
+                matToTeam[b.type]
+            }
             if (oldTeam != null) {
                 game.paintedCommand[oldTeam] = (game.paintedCommand[oldTeam] ?: 0) - 1
             }
 
             b.type = newMat
+
+            if (isStairs && oldState != null) {
+                applyStairState(b, oldState)
+            }
 
             val shooterBaseTeam = game.commands[shooterId]
             if (shooterBaseTeam != null) {
@@ -333,19 +346,24 @@ class ProjectileHitListener : Listener {
         radius: Double,
         paintTeam: Int,
     ) {
-        val newMat = getTeamMaterial(paintTeam)
-        val paintable = setOf(
-            Material.WHITE_CONCRETE,
-            Material.RED_CONCRETE,
-            Material.YELLOW_CONCRETE,
-            Material.GREEN_CONCRETE,
-            Material.BLUE_CONCRETE
-        )
+
+        val paintable = SplatoonSettings.paintableMaterials
 
         if (radius <= 0.6){
             val block = center.block
-            if (paintable.contains(block.type) && block.type != newMat) {
-                block.type = newMat
+            println("[DEBUG] Single block: ${block.type}, isStairs=${isStairsBlock(block)}")
+            if (paintable.contains(block.type)) {
+                val oldState = if (isStairsBlock(block)) getStairsState(block) else null
+                val newMat = getTeamMaterial(paintTeam, isStairsBlock(block))
+
+                if (block.type != newMat) {
+                    block.type = newMat
+
+                    if(isStairsBlock(block) && oldState != null){
+                        applyStairState(block, oldState)
+                    }
+                }
+
             }
             return
         }
@@ -354,21 +372,54 @@ class ProjectileHitListener : Listener {
             for (y in roundFromZero(center.y - radius)..roundFromZero(center.y + radius)) {
                 for (z in roundFromZero(center.z - radius)..roundFromZero(center.z + radius)) {
                     val block = world.getBlockAt(x, y, z)
-                    if (paintable.contains(block.type) && block.type != newMat) {
-                        block.type = newMat
+                    if (paintable.contains(block.type)) {
+                        val oldState = if(isStairsBlock(block)) getStairsState(block) else null
+                        val newMat = getTeamMaterial(paintTeam, isStairsBlock(block))
+                        if (block.type != newMat){
+                            println("[DEBUG] Changing ${block.type} to $newMat at ${block.location}")
+                            block.type = newMat
+                            if (isStairsBlock(block) && oldState != null) {
+                                applyStairState(block, oldState)
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    private fun getTeamMaterial(team: Int): Material {
-        return when (team) {
-            0 -> Material.RED_CONCRETE
-            1 -> Material.YELLOW_CONCRETE
-            2 -> Material.GREEN_CONCRETE
-            3 -> Material.BLUE_CONCRETE
-            else -> Material.WHITE_CONCRETE
+    private fun getTeamMaterial(team: Int, isStairs: Boolean = false): Material {
+        val result = when (team){
+            0 -> if (isStairs) Material.RED_NETHER_BRICK_STAIRS else Material.RED_CONCRETE
+            1 -> if (isStairs) Material.RESIN_BRICK_STAIRS else Material.YELLOW_CONCRETE
+            2 -> if (isStairs) Material.MOSSY_COBBLESTONE_STAIRS else Material.GREEN_CONCRETE
+            3 -> if (isStairs) Material.OXIDIZED_CUT_COPPER_STAIRS else Material.BLUE_CONCRETE
+            else -> if (isStairs) Material.END_STONE_BRICK_STAIRS else Material.WHITE_CONCRETE
         }
+        println("[DEBUG] getTeamMaterial: team=$team, isStairs=$isStairs, result=$result")
+        return result
+    }
+
+    private fun isStairsBlock(block: Block): Boolean {
+        return block.type.name.contains("STAIRS", ignoreCase = true)
+    }
+
+    private fun getStairsState(block: Block): StairState? {
+        if (!isStairsBlock(block)) return null
+
+        val data = block.blockData as? Stairs ?: return null
+        return StairState(
+            facing = data.facing,
+            shape = data.shape,
+            waterlogged = data.isWaterlogged
+        )
+    }
+
+    private fun applyStairState(block: Block, state: StairState) {
+        val stairData = block.blockData as? Stairs ?: return
+        stairData.facing = state.facing
+        stairData.shape = state.shape
+        stairData.isWaterlogged = state.waterlogged
+        block.blockData = stairData
     }
 }

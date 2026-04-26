@@ -206,7 +206,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             3 -> "Blue"
             2 -> "Green"
             1 -> "Yellow"
-            else -> "Red"
+            -1 -> "White"
+            else -> "White"
         }
     }
 
