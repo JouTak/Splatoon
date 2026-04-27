@@ -914,15 +914,12 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     private fun sendStartInstructions() {
         commands.keys.forEach { id ->
             val p = Bukkit.getPlayer(id) ?: return@forEach
-            p.sendMessage(Component.text("§6§lSplatoon §7— закрась арену своим цветом и набери больше %!"))
-            p.sendMessage(Component.text("§f• §eПКМ пушкой §7— выстрел краской (Противников можно взорвать, у вас ${maxInkHp} ХП"))
-            p.sendMessage(Component.text("§f• §eПКМ бомбочкой §7— взрыв краски"))
-            p.sendMessage(
-                Component.text(
-                    "§f• §dБацилла §7 — §eударь игрока (ЛКМ), и он будет стрелять твоим цветом ${SplatoonSettings.bacillusDurationSeconds} секунд"
-                )
-            )
-            p.sendMessage(Component.text("§f• §aУдерживая shift на своей краске §7вы скрываетесь и лечитесь ❤"))
+
+            Lang.componentList(
+                "messages.start_instructions",
+                "max_hp" to maxInkHp.toString(),
+                "bacillus_time" to SplatoonSettings.bacillusDurationSeconds.toString()
+            ).forEach { p.sendMessage(it) }
         }
     }
 

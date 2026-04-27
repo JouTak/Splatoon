@@ -2,6 +2,7 @@ package ru.joutak.splatoon.lang
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+import org.bukkit.ChatColor
 import org.bukkit.configuration.file.FileConfiguration
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.plugin.java.JavaPlugin
@@ -31,26 +32,39 @@ object Lang {
 
     // 🔹 Просто строка
     fun get(path: String): String {
-        return config.getString(path) ?: "§cMissing lang key: $path"
+        return colorize(config.getString(path) ?: "§cMissing lang key: $path")
     }
 
     // 🔹 С плейсхолдерами
     fun get(path: String, vararg replacements: Pair<String, String>): String {
-        var text = get(path)
+        var text = config.getString(path) ?: "§cMissing lang key: $path"
 
         replacements.forEach { (key, value) ->
             text = text.replace("%$key%", value)
         }
 
-        return text
+        return colorize(text)
     }
 
-    // 🔹 Список строк
+    // 🔹 Список строк (БЕЗ плейсхолдеров)
     fun getList(path: String): List<String> {
-        return config.getStringList(path)
+        return config.getStringList(path).map { colorize(it) }
     }
 
-    // 🔥 Сразу Component (ОЧЕНЬ удобно)
+    // 🔥 Список строк С плейсхолдерами (ГЛАВНОЕ ДОБАВЛЕНИЕ)
+    fun getList(path: String, vararg replacements: Pair<String, String>): List<String> {
+        return config.getStringList(path).map { line ->
+            var result = line
+
+            replacements.forEach { (key, value) ->
+                result = result.replace("%$key%", value)
+            }
+
+            colorize(result)
+        }
+    }
+
+    // 🔥 Component
     fun component(path: String): Component {
         return serializer.deserialize(get(path))
     }
@@ -61,5 +75,15 @@ object Lang {
 
     fun componentList(path: String): List<Component> {
         return getList(path).map { serializer.deserialize(it) }
+    }
+
+    // 🔥 ComponentList с плейсхолдерами (ТОЖЕ ВАЖНО)
+    fun componentList(path: String, vararg replacements: Pair<String, String>): List<Component> {
+        return getList(path, *replacements).map { serializer.deserialize(it) }
+    }
+
+    // 🔹 Перевод & → §
+    private fun colorize(text: String): String {
+        return ChatColor.translateAlternateColorCodes('&', text)
     }
 }
