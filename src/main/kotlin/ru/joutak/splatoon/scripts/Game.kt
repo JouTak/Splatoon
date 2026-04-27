@@ -1206,7 +1206,9 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     }
 
     private fun makeBoost(name: String, w: World, loc: Location): ItemDisplay? {
-        val display: ItemDisplay = w.spawn(loc, ItemDisplay::class.java)
+        val display: ItemDisplay = w.spawn(loc, ItemDisplay::class.java) { display ->
+            display.isGlowing = true
+        }
 
         when (name) {
             "bomb" -> {
@@ -1438,7 +1440,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
         val loc = pickSpawnLocation(w, player.uniqueId)
 
-        player.teleport(loc)
+        player.teleportAsync(loc)
     }
 
     private fun pickSpawnLocation(world: World, uuid: UUID): org.bukkit.Location {
