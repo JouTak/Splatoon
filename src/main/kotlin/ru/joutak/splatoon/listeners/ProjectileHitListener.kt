@@ -24,6 +24,7 @@ import ru.joutak.splatoon.scripts.GameManager
 import java.util.UUID
 import kotlin.math.ceil
 import kotlin.math.floor
+import org.bukkit.block.data.Bisected
 
 class ProjectileHitListener : Listener {
 
@@ -34,7 +35,8 @@ class ProjectileHitListener : Listener {
     private data class StairState(
         val facing: BlockFace,
         val shape: Stairs.Shape,
-        val waterlogged: Boolean
+        val waterlogged: Boolean,
+        val half: Bisected.Half
     )
 
     @EventHandler
@@ -411,7 +413,8 @@ class ProjectileHitListener : Listener {
         return StairState(
             facing = data.facing,
             shape = data.shape,
-            waterlogged = data.isWaterlogged
+            waterlogged = data.isWaterlogged,
+            half = data.half
         )
     }
 
@@ -419,6 +422,7 @@ class ProjectileHitListener : Listener {
         val stairData = block.blockData as? Stairs ?: return
         stairData.facing = state.facing
         stairData.shape = state.shape
+        stairData.half = state.half
         stairData.isWaterlogged = state.waterlogged
         block.blockData = stairData
     }
