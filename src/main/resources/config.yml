@@ -8,7 +8,7 @@ lobby:
     - location: [72, 69, 69]
       type: bomb
     - location: [74,69,69]
-      type: bacillus
+      type: gun
 
 game:
   # Match duration in seconds

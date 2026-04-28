@@ -19,6 +19,10 @@ object LobbyDecorationManager {
         val world = Bukkit.getWorld(SplatoonSettings.lobbyWorldName)
         if (world == null) return
 
+        world.entities.filterIsInstance<ItemDisplay>()
+            .filter { it.scoreboardTags.contains("lobby_decoration") }
+            .forEach { it.remove() }
+
         for (decoration in SplatoonSettings.lobbyDecorationItemLocations){
             val x = decoration["x"] as? Double ?: continue
             val y = decoration["y"] as? Double ?: continue
@@ -47,5 +51,6 @@ object LobbyDecorationManager {
     fun removeAll(){
         decorations.forEach { it.remove() }
         decorations.clear()
+
     }
 }
