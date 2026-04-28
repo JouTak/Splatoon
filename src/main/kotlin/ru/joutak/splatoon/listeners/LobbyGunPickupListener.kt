@@ -1,5 +1,6 @@
 package ru.joutak.splatoon.listeners
 
+import org.bukkit.entity.ItemDisplay
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerMoveEvent
@@ -16,9 +17,14 @@ class LobbyGunPickupListener : Listener {
 
         if (GameManager.playerGame.containsKey(player.uniqueId  )) return
 
-        for (location in LobbyGunStand.getLocations()) {
-            if (player.location.distance(location) <= 1.5) {
-                LobbyGunStand.tryPickup(player, location)
+        val nearbyEntities = player.getNearbyEntities(1.5,1.5,1.5)
+        val nearbyDisplays = nearbyEntities.filterIsInstance<ItemDisplay>()
+
+        for (display in nearbyDisplays) {
+            if (display.scoreboardTags.contains("lobby_decoration")) continue
+
+            if (LobbyGunStand.isGunStand(display.location)) {
+                LobbyGunStand.tryPickup(player, display.location)
                 break
             }
         }
