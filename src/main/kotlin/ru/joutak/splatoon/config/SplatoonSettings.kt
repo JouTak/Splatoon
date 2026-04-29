@@ -499,6 +499,18 @@ object SplatoonSettings {
         }
     }
 
+    fun getSkins(): Inventory? {
+        if (skinsInventory == null) return null
+
+        val copy = Bukkit.createInventory(null, skinsInventory!!.size, "Установить скин")
+
+        skinsInventory!!.contents.forEachIndexed { i, item ->
+            copy.setItem(i, item?.clone())
+        }
+
+        return copy
+    }
+
     private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {
         if (item !is List<*>) return null
         if (item.size < 3) return null
