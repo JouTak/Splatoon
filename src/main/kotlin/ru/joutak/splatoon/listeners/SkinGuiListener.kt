@@ -29,8 +29,6 @@ class SkinGuiListener : Listener {
                 iMeta.setCustomModelData(id)
 
                 i.itemMeta = iMeta
-
-                e.whoClicked.sendMessage("Скин установлен! " + "(" + i.itemMeta.customModelData + ")")
             }
         }
     }
