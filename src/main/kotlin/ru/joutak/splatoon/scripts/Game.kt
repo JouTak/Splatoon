@@ -748,6 +748,8 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             true
         )
 
+        gunMeta.setCustomModelData(SplatoonSettings.defaultSkin)
+
         (gunMeta as? CrossbowMeta)?.let { crossbow ->
             if (crossbow.chargedProjectiles.isEmpty()) {
                 runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
@@ -1066,6 +1068,8 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             PersistentDataType.BOOLEAN,
             true
         )
+
+        meta.setCustomModelData(SplatoonSettings.defaultSkin)
 
         // Держим арбалет визуально "заряженным" всегда, чтобы моделька не дёргалась.
         (meta as? CrossbowMeta)?.let { crossbow ->
