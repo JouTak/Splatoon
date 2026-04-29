@@ -285,7 +285,7 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
         args: Array<out String>
     ): MutableList<String> {
         if (args.size == 1) {
-            val base = listOf("help", "get", "games", "spectate", "unspectate", "phase", "skip", "time")
+            val base = listOf("help", "get", "games", "spectate", "unspectate", "phase", "skip", "time", "skin")
             return base.filter { it.startsWith(args[0], ignoreCase = true) }.toMutableList()
         }
 
