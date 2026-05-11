@@ -131,8 +131,19 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         ensureAmmoFallback(player, colorName)
 
         val projectileItem = createProjectileItem(colorName)
-        val dir = player.eyeLocation.direction.normalize()
-        val muzzle = muzzleLocation(player.eyeLocation, dir)
+
+        var targetDistance = 50.0
+        val targetBlock = player.getTargetBlockExact(50)
+        if (targetBlock != null) {
+            targetDistance = player.eyeLocation.distance(targetBlock.location)
+        }
+
+        val (muzzle, correctedDir) = muzzleLocation(
+            player.eyeLocation,
+            player.eyeLocation.direction,
+            targetDistance
+        )
+
         val inCeremony = GameManager.getCeremonyBounds(player.uniqueId)?.worldName == player.world.name
 
         // Мягкий "красящий" звук вместо любых звуков арбалета.
@@ -142,7 +153,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 	    	player.world.spawn(muzzle, Snowball::class.java) { projectile ->
             projectile.item = ItemStack(Material.AIR, 1)
             projectile.setGravity(!SplatoonSettings.gunDisableGravity)
-            projectile.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
+            projectile.velocity = correctedDir.clone().multiply(SplatoonSettings.gunVelocity)
             projectile.shooter = player
 
             if (inCeremony) {
@@ -158,6 +169,14 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 	                setItemStack(projectileItem)
                 billboard = Display.Billboard.FIXED
                 disableDisplayInterpolation(this)
+
+                isInvisible = true
+
+//                plugin.server.scheduler.runTaskLater(plugin, Runnable{
+//                    if (!this.isDead) {
+//                        this.isInvisible = false
+//                    }
+//                }, 2)
             }
             projectile.addPassenger(display)
         }
@@ -311,7 +330,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         item.itemMeta = meta
     }
 
-    private fun muzzleLocation(eye: Location, dir: Vector): Location {
+
+    private fun muzzleLocation(eye: Location, dir: Vector, targetDistance: Double = 50.0): Pair<Location, Vector> {
         val up = Vector(0.0, 1.0, 0.0)
         var right = dir.clone().crossProduct(up)
         if (right.lengthSquared() < 1e-6) {
@@ -319,11 +339,30 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
         right.normalize()
 
-        // Смещаем старт ближе к пушке: вперёд + вправо + чуть вниз (к руке)
-        return eye.clone()
-            .add(dir.clone().multiply(1.50))
-            .add(right.multiply(0.32))
-            .add(0.0, -0.40, 0.0)
+        val horizontalOffset = 0.32
+        val verticalOffset = -0.40
+        val forwardOffset = 0.5
+
+        val muzzlePos = eye.clone()
+            .add(dir.clone().multiply(forwardOffset))
+            .add(right.multiply(horizontalOffset))
+            .add(0.0, verticalOffset, 0.0)
+
+        val aimDistance = targetDistance.coerceAtLeast(5.0)
+        val aimPoint = eye.clone().add(dir.clone().multiply(aimDistance))
+
+        val shootDir = aimPoint.toVector().subtract(muzzlePos.toVector()).normalize()
+
+//        val leftCorrection = 0.04
+//        val upCorrection = 0.03
+//
+//        shootDir.add(right.clone().multiply(-leftCorrection))
+//        shootDir.add(vertical.multiply(upCorrection))
+        shootDir.normalize()
+
+        return muzzlePos to shootDir
+
+
     }
 
 }
