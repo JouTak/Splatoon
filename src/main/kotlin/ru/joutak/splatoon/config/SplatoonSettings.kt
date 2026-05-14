@@ -218,6 +218,9 @@ object SplatoonSettings {
     var skinsInventory: Inventory? = null
         private set
 
+    var skinChanger: Material = Material.EMERALD
+        private set
+
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
 
     val boostLocations: MutableList<List<Double>> = mutableListOf()
@@ -440,6 +443,9 @@ object SplatoonSettings {
                 } catch (_: Exception) {}
             }
         }
+        try {
+            skinChanger = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+        } catch (_: Exception) {}
 
         boostChances.clear()
         val bombChance = config.getInt("boosts.chances.bomb", 0).coerceAtLeast(0)
