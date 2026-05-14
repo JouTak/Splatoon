@@ -18,6 +18,7 @@ import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
+import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
 
@@ -30,14 +31,28 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
         val player = event.player
         val action = event.action
 
-        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
-        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
-
         val itemInHand = player.inventory.itemInMainHand
+
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY) && itemInHand.type != SplatoonSettings.skinChanger) return
+
         if (itemInHand.type == Material.AIR) return
 
         val meta = itemInHand.itemMeta ?: return
         val pdc = meta.persistentDataContainer
+
+        if (pdc.has(NamespacedKey(SplatoonPlugin.instance, "skinChanger"))) {
+            val skins = SplatoonSettings.getSkins()
+
+            if (skins == null) {
+                player.sendMessage("§cСкины отсутствуют")
+                return
+            }
+
+            player.openInventory(skins)
+
+            return
+        }
 
         val game = GameManager.playerGame[player.uniqueId]
 
