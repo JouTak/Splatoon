@@ -20,6 +20,8 @@ object GameManager {
     private val gamesByWorld: MutableMap<String, Game> = mutableMapOf()
     private val spectatingWorldByPlayer: MutableMap<UUID, String> = mutableMapOf()
 
+    private val playerSkins: MutableMap<UUID, Int> = mutableMapOf()
+
     private val adminAmmoOverride: MutableMap<UUID, Pair<Int, Long>> = mutableMapOf()
 
     private val templateWorlds: MutableSet<String> = mutableSetOf()
@@ -36,6 +38,20 @@ object GameManager {
     private val ceremonyBoundsByPlayer: MutableMap<UUID, CeremonyBounds> = mutableMapOf()
 
     private val playerSelectedTeam = mutableMapOf<UUID, Int>()
+
+    fun getSkin(uuid: UUID): Int {
+        if (uuid in playerSkins) {
+            return playerSkins[uuid]!!
+        }
+
+        playerSkins[uuid] = SplatoonSettings.defaultSkin
+
+        return SplatoonSettings.defaultSkin
+    }
+
+    fun setSkin(uuid: UUID, id: Int) {
+        playerSkins[uuid] = id
+    }
 
     fun registerTemplateWorld(worldName: String) {
         templateWorlds.add(worldName)
