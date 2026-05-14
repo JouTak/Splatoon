@@ -768,8 +768,20 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         )
         bomb.itemMeta = bombMeta
 
+        // Skin-changer
+        val changer = ItemStack(SplatoonSettings.skinChanger, 1)
+        val changerMeta = changer.itemMeta
+        changerMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
+        changerMeta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+        changer.itemMeta = changerMeta
+
         player.inventory.addItem(gun)
         player.inventory.addItem(bomb)
+        player.inventory.setItem(8, changer.clone())
     }
 
     private fun endCeremonyAndFinalize() {
@@ -1079,9 +1091,21 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         }
         item.itemMeta = meta
 
+        // Skin-changer
+        val changer = ItemStack(SplatoonSettings.skinChanger, 1)
+        val changerMeta = changer.itemMeta
+        changerMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
+        changerMeta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+        changer.itemMeta = changerMeta
+
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             p.inventory.addItem(item.clone())
+            p.inventory.setItem(8, changer.clone())
         }
     }
 
