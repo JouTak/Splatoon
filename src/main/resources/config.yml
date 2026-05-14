@@ -67,6 +67,7 @@ spawn_protection:
 skins:
   models: [1000]
   default: 1000
+  changer: EMERALD
 
 weapons:
   gun:
