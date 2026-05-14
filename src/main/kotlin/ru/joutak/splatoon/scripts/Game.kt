@@ -748,7 +748,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             true
         )
 
-        gunMeta.setCustomModelData(SplatoonSettings.defaultSkin)
+        gunMeta.setCustomModelData(GameManager.getSkin(player.uniqueId))
 
         (gunMeta as? CrossbowMeta)?.let { crossbow ->
             if (crossbow.chargedProjectiles.isEmpty()) {
@@ -1081,8 +1081,6 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             true
         )
 
-        meta.setCustomModelData(SplatoonSettings.defaultSkin)
-
         // Держим арбалет визуально "заряженным" всегда, чтобы моделька не дёргалась.
         (meta as? CrossbowMeta)?.let { crossbow ->
             if (crossbow.chargedProjectiles.isEmpty()) {
@@ -1104,7 +1102,11 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
-            p.inventory.addItem(item.clone())
+            val pGun = item.clone()
+            val pMeta = pGun.itemMeta
+            pMeta.setCustomModelData(GameManager.getSkin(uuid))
+            pGun.itemMeta = pMeta
+            p.inventory.addItem(pGun)
             p.inventory.setItem(8, changer.clone())
         }
     }
