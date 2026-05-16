@@ -755,6 +755,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                 runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
             }
         }
+        gunMeta.setCustomModelData(GameManager.getSkin(player.uniqueId))
         gun.itemMeta = gunMeta
 
         // Bomb
@@ -1091,7 +1092,11 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
-            p.inventory.addItem(item.clone())
+            val playerItem = item.clone()
+            val pMeta = playerItem.itemMeta
+            pMeta.setCustomModelData(GameManager.getSkin(uuid))
+            playerItem.itemMeta = pMeta
+            p.inventory.addItem(playerItem)
         }
     }
 
