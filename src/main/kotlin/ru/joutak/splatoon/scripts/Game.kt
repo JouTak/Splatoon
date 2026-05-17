@@ -1215,7 +1215,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                 display.addScoreboardTag("bomb")
             }
             "bacillus" -> {
-                display.setItemStack(ItemStack(Material.AMETHYST_SHARD, 1))
+                display.setItemStack(ItemStack(Material.LINGERING_POTION, 1))
                 display.addScoreboardTag("bacillus")
             }
             else -> {

@@ -45,7 +45,7 @@ object AdminItems {
     }
 
     fun bacillus(team: Int = 0): ItemStack {
-        val item = ItemStack(Material.AMETHYST_SHARD, 1)
+        val item = ItemStack(Material.LINGERING_POTION, 1)
         val meta = item.itemMeta
         val plugin = SplatoonPlugin.instance
 
