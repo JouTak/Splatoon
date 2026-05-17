@@ -25,18 +25,28 @@ class PlayerToggleSneakListener : Listener {
         if (gameNow == null) {
             val existing = tasks.remove(uuid)
             if (existing != null) Bukkit.getScheduler().cancelTask(existing)
+            player.removePotionEffect(PotionEffectType.INVISIBILITY)
+            player.removePotionEffect(PotionEffectType.REGENERATION)
             return
         }
 
         if (!SplatoonSettings.sneakOnInkEnabled) {
             val existing = tasks.remove(uuid)
             if (existing != null) Bukkit.getScheduler().cancelTask(existing)
+            player.removePotionEffect(PotionEffectType.INVISIBILITY)
+            player.removePotionEffect(PotionEffectType.REGENERATION)
+            return
+        }
+
+        if (!event.isSneaking){
+            val taskId = tasks.remove(uuid)
+            if (taskId != null) Bukkit.getScheduler().cancelTask(taskId)
+            player.removePotionEffect(PotionEffectType.INVISIBILITY)
+            player.removePotionEffect(PotionEffectType.REGENERATION)
             return
         }
 
         if (tasks.containsKey(uuid)) {
-            val taskId = tasks.remove(uuid)
-            if (taskId != null) Bukkit.getScheduler().cancelTask(taskId)
             return
         }
 
@@ -67,17 +77,6 @@ class PlayerToggleSneakListener : Listener {
             }
 
             if (onInk) {
-                player.addPotionEffect(
-                    PotionEffect(
-                        PotionEffectType.SPEED,
-                        SplatoonSettings.sneakOnInkEffectDurationTicks,
-                        SplatoonSettings.sneakOnInkSpeedAmplifier,
-                        false,
-                        false,
-                        true
-                    )
-                )
-
                 if (SplatoonSettings.sneakOnInkInvisibilityAmplifier >= 0) {
                     player.addPotionEffect(
                         PotionEffect(
@@ -103,6 +102,9 @@ class PlayerToggleSneakListener : Listener {
                         )
                     )
                 }
+            } else {
+                player.removePotionEffect(PotionEffectType.INVISIBILITY)
+                player.removePotionEffect(PotionEffectType.REGENERATION)
             }
         }, 0L, SplatoonSettings.sneakOnInkTaskPeriodTicks)
 

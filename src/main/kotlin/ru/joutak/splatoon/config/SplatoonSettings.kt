@@ -1,6 +1,7 @@
 package ru.joutak.splatoon.config
 
 import org.bukkit.Location
+import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
 import java.lang.reflect.AccessFlag
 import java.util.logging.Logger
@@ -209,6 +210,24 @@ object SplatoonSettings {
 
     val arenas: MutableList<ArenaSettings> = mutableListOf()
     val arenasById: MutableMap<String, ArenaSettings> = mutableMapOf()
+
+    val paintableMaterials: Set<Material> = setOf(
+        Material.RED_CONCRETE,
+        Material.RED_NETHER_BRICK_STAIRS,
+        Material.RED_NETHER_BRICK_SLAB,
+        Material.YELLOW_CONCRETE,
+        Material.RESIN_BRICK_STAIRS,
+        Material.RESIN_BRICK_SLAB,
+        Material.GREEN_CONCRETE,
+        Material.MOSSY_COBBLESTONE_STAIRS,
+        Material.MOSSY_COBBLESTONE_SLAB,
+        Material.BLUE_CONCRETE,
+        Material.OXIDIZED_CUT_COPPER_STAIRS,
+        Material.OXIDIZED_CUT_COPPER_SLAB,
+        Material.WHITE_CONCRETE,
+        Material.END_STONE_BRICK_STAIRS,
+        Material.END_STONE_BRICK_SLAB
+    )
 
     fun load(config: YamlConfiguration, logger: Logger) {
         lobbyWorldName = config.getString("lobby.world")
