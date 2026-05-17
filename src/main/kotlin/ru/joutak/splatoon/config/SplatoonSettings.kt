@@ -1,10 +1,19 @@
 package ru.joutak.splatoon.config
 
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.TextColor
+import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
+import ru.joutak.splatoon.SplatoonPlugin
 import java.lang.reflect.AccessFlag
 import java.util.logging.Logger
+import kotlin.math.ceil
 import kotlin.math.max
 
 data class SpawnPoint(
@@ -201,6 +210,15 @@ object SplatoonSettings {
         private set
 
     var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
+        private set
+
+    var defaultSkin: Int = 1000
+        private set
+
+    var skinsInventory: Inventory? = null
+        private set
+
+    var skinChanger: Material = Material.EMERALD
         private set
 
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
@@ -419,7 +437,36 @@ object SplatoonSettings {
             logger.warning("boosts.locations is empty; using fallback [0,0,0]")
         }
 
-
+        defaultSkin = config.getInt("skins.default", 1000)
+        val item = ItemStack(Material.CROSSBOW, 1)
+        val meta = item.itemMeta
+        meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
+        meta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "splatGun"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+        item.itemMeta = meta
+        val models = config.getList("skins.models") ?: emptyList<Any>()
+        if (!models.isEmpty()) {
+            val size = (ceil(models.size / 9.0) * 9).toInt()
+            skinsInventory = Bukkit.createInventory(null, size, "Установить скин")
+            var cell = 0
+            for (any in models) {
+                try {
+                    val id = any.toString().toInt()
+                    val copy = item.clone()
+                    val copyMeta = copy.itemMeta
+                    copyMeta.setCustomModelData(id)
+                    copy.itemMeta = copyMeta
+                    skinsInventory?.setItem(cell, copy)
+                    cell += 1
+                } catch (_: Exception) {}
+            }
+        }
+        try {
+            skinChanger = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+        } catch (_: Exception) {}
 
         boostChances.clear()
         val bombChance = config.getInt("boosts.chances.bomb", 0).coerceAtLeast(0)
@@ -477,6 +524,18 @@ object SplatoonSettings {
             arenas.add(s)
             arenasById[id] = s
         }
+    }
+
+    fun getSkins(): Inventory? {
+        if (skinsInventory == null) return null
+
+        val copy = Bukkit.createInventory(null, skinsInventory!!.size, "Установить скин")
+
+        skinsInventory!!.contents.forEachIndexed { i, item ->
+            copy.setItem(i, item?.clone())
+        }
+
+        return copy
     }
 
     private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {

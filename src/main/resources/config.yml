@@ -69,6 +69,11 @@ spawn_protection:
   resistance_amplifier: 10
   no_damage_ticks: 60
 
+skins:
+  models: [1000]
+  default: 1000
+  changer: EMERALD
+
 weapons:
   gun:
     velocity: 1.4

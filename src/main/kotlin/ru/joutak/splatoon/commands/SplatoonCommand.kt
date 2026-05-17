@@ -6,6 +6,7 @@ import org.bukkit.command.CommandSender
 import org.bukkit.command.TabCompleter
 import org.bukkit.entity.Player
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
 
@@ -89,6 +90,24 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
                     }
                     else -> sender.sendMessage("§cНеизвестный предмет. Доступно: gun, bomb, bacillus")
                 }
+                return true
+            }
+
+            "skin" -> {
+                if (sender !is Player) {
+                    sender.sendMessage("§cТолько для игроков")
+                    return true
+                }
+
+                val skins = SplatoonSettings.getSkins()
+
+                if (skins == null) {
+                    sender.sendMessage("§cСкины отсутствуют")
+                    return true
+                }
+
+                sender.openInventory(skins)
+
                 return true
             }
 
@@ -255,6 +274,8 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
                 return true
             }
         }
+
+        return true
     }
 
     override fun onTabComplete(
@@ -264,7 +285,7 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
         args: Array<out String>
     ): MutableList<String> {
         if (args.size == 1) {
-            val base = listOf("help", "get", "games", "spectate", "unspectate", "phase", "skip", "time")
+            val base = listOf("help", "get", "games", "spectate", "unspectate", "phase", "skip", "time", "skin")
             return base.filter { it.startsWith(args[0], ignoreCase = true) }.toMutableList()
         }
 

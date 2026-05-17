@@ -20,6 +20,7 @@ import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.JumpPadListener
 import ru.joutak.splatoon.listeners.LobbyGunPickupListener
+import ru.joutak.splatoon.listeners.SkinGuiListener
 import ru.joutak.splatoon.listeners.SpectatorWorldTeleportGuardListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
@@ -94,6 +95,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
         Bukkit.getPluginManager().registerEvents(JumpPadListener(), this)
         Bukkit.getPluginManager().registerEvents(LobbyGunPickupListener(), this)
+        Bukkit.getPluginManager().registerEvents(SkinGuiListener(), this)
 
 
         val cmd = getCommand("splatoon")
