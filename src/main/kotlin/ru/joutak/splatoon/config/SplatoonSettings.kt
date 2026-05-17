@@ -205,6 +205,8 @@ object SplatoonSettings {
 
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
 
+    val lobbyDecorationItemLocations: MutableList<MutableMap<String, Any>> = mutableListOf()
+
     val boostLocations: MutableList<List<Double>> = mutableListOf()
     val boostChances: MutableMap<String, List<Int>> = mutableMapOf()
 
@@ -386,6 +388,25 @@ object SplatoonSettings {
         if (lobbyGunLocations.isEmpty()){
             logger.info("lobby.gun_stand_locations is empty; gun stands will not be spawned")
         }
+
+        lobbyDecorationItemLocations.clear()
+        val decorationList = config.getList("lobby.decorations") ?: emptyList<Any>()
+        for (item in decorationList){
+            val map = item as? Map<*, *> ?: continue
+            val rawCoord = map["location"] as? List<*> ?: continue
+            val coords = parseCoord3(rawCoord) ?: continue
+            val type = (map["type"] as? String)?.lowercase() ?: "bomb"
+
+            val decoration = mutableMapOf<String, Any>(
+                "x" to coords[0],
+                "y" to coords[1],
+                "z" to coords[2],
+                "type" to type
+            )
+
+            lobbyDecorationItemLocations.add(decoration)
+        }
+
 
         boostLocations.clear()
         val locList = config.getList("boosts.locations") ?: config.getList("boost_locations") ?: emptyList<Any>()

@@ -26,6 +26,7 @@ import ru.joutak.splatoon.listeners.SplatGunProtectionListener
 import ru.joutak.splatoon.scripts.GameManager
 import ru.joutak.splatoon.scripts.LobbyGunStand
 import java.io.File
+import ru.joutak.splatoon.scripts.LobbyDecorationManager
 
 class SplatoonPlugin : JavaPlugin() {
     companion object {
@@ -115,6 +116,12 @@ class SplatoonPlugin : JavaPlugin() {
                 } else {
                     logger.info("No gun stand locations configured, skipping spawn")
                 }
+
+                if (SplatoonSettings.lobbyDecorationItemLocations.isNotEmpty()) {
+                    LobbyDecorationManager.spawnAll()
+                }
+
+
             } else {
                 logger.warning("Lobby world '${SplatoonSettings.lobbyWorldName}' not found! Gun stands not spawned.")
             }
@@ -135,5 +142,6 @@ class SplatoonPlugin : JavaPlugin() {
         GameManager.shutdownAllGames()
 
         LobbyGunStand.removeAll()
+        LobbyDecorationManager.removeAll()
     }
 }
