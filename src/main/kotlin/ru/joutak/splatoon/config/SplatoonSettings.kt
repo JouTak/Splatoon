@@ -232,16 +232,21 @@ object SplatoonSettings {
     val arenasById: MutableMap<String, ArenaSettings> = mutableMapOf()
 
     val paintableMaterials: Set<Material> = setOf(
-        Material.WHITE_CONCRETE,
         Material.RED_CONCRETE,
-        Material.YELLOW_CONCRETE,
-        Material.GREEN_CONCRETE,
-        Material.BLUE_CONCRETE,
         Material.RED_NETHER_BRICK_STAIRS,
+        Material.RED_NETHER_BRICK_SLAB,
+        Material.YELLOW_CONCRETE,
         Material.RESIN_BRICK_STAIRS,
+        Material.RESIN_BRICK_SLAB,
+        Material.GREEN_CONCRETE,
         Material.MOSSY_COBBLESTONE_STAIRS,
+        Material.MOSSY_COBBLESTONE_SLAB,
+        Material.BLUE_CONCRETE,
         Material.OXIDIZED_CUT_COPPER_STAIRS,
-        Material.END_STONE_BRICK_STAIRS
+        Material.OXIDIZED_CUT_COPPER_SLAB,
+        Material.WHITE_CONCRETE,
+        Material.END_STONE_BRICK_STAIRS,
+        Material.END_STONE_BRICK_SLAB
     )
 
     fun load(config: YamlConfiguration, logger: Logger) {
