@@ -79,12 +79,16 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
     val kills: MutableMap<UUID, Int> = mutableMapOf()
 
-    val commandColors: Map<Int, Material> = mapOf(
-        0 to Material.RED_CONCRETE,
-        3 to Material.BLUE_CONCRETE,
-        2 to Material.GREEN_CONCRETE,
-        1 to Material.YELLOW_CONCRETE
-    )
+    fun getTeamMaterial(teamIndex: Int): Material =
+        runCatching { MiniGamesAPI.getTeamStyle(teamIndex + 1).material }
+            .getOrElse {
+                when (teamIndex) {
+                    0 -> Material.RED_CONCRETE
+                    1 -> Material.YELLOW_CONCRETE
+                    2 -> Material.GREEN_CONCRETE
+                    else -> Material.BLUE_CONCRETE
+                }
+            }
     var commands: MutableMap<UUID, Int> = mutableMapOf()
 
     private val playerNames: MutableMap<UUID, String> = mutableMapOf()
@@ -822,26 +826,16 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                     }
 
                     targets.forEach { p ->
-                        val colors = mapOf(
-                            0 to Component.text("Ваша команда: Красные!", NamedTextColor.RED),
-                            3 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
-                            2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
-                            1 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
-                        )
-                        val subtitle = colors[commands[p.uniqueId]]
-                            ?: Component.text("Матч начинается!", NamedTextColor.GRAY)
-
-                        val titleColor = when (commands[p.uniqueId]) {
-                            0 -> NamedTextColor.RED
-                            1 -> NamedTextColor.YELLOW
-                            2 -> NamedTextColor.GREEN
-                            3 -> NamedTextColor.BLUE
-                            else -> NamedTextColor.GOLD
+                        val teamIndex = commands[p.uniqueId]
+                        val style = teamIndex?.let {
+                            runCatching { MiniGamesAPI.getTeamStyle(it + 1) }.getOrNull()
                         }
+                        val teamColor = style?.color ?: NamedTextColor.GRAY
+                        val teamName = style?.displayNamePlain ?: "Команда"
 
                         val titleObj = Title.title(
-                            Component.text("ПОДГОТОВКА!", titleColor),
-                            subtitle,
+                            Component.text("ПОДГОТОВКА!", teamColor),
+                            Component.text("Ваша команда: $teamName!", teamColor),
                             Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(1800), Duration.ofMillis(200))
                         )
                         p.showTitle(titleObj)
@@ -1330,7 +1324,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         paintedCommand.keys.forEach { paintedCommand[it] = 0 }
 
         val materialToTeam = mutableMapOf<Material, Int>()
-        commandColors.forEach { (team, mat) -> materialToTeam[mat] = team }
+        paintedCommand.keys.forEach { team -> materialToTeam[getTeamMaterial(team)] = team }
 
         val paintable = setOf(
             Material.WHITE_CONCRETE,
