@@ -19,6 +19,7 @@ object GameManager {
     val arenas: MutableMap<String, World> = mutableMapOf()
     private val gamesByWorld: MutableMap<String, Game> = mutableMapOf()
     private val spectatingWorldByPlayer: MutableMap<UUID, String> = mutableMapOf()
+    private val instanceByGame: MutableMap<Game, GameInstance> = mutableMapOf()
 
     private val playerSkins: MutableMap<UUID, Int> = mutableMapOf()
 
@@ -194,6 +195,7 @@ object GameManager {
         // Keep player stats for end-of-match results, but exclude the player from active match logic.
         game.markPlayerLeft(uuid)
         game.commands.remove(uuid)
+        instanceByGame[game]?.removeActivePlayer(uuid)
     }
 
     fun getGame(player: Player): Game? = playerGame[player.uniqueId]
@@ -335,6 +337,8 @@ object GameManager {
         }
 
         gamesByWorld[worldName] = game
+        instanceByGame[game] = instance
+        instance.startMatchAndSnapshotPlayers()
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }
@@ -392,7 +396,9 @@ object GameManager {
         // Restore and remove spectators BEFORE world cleanup so their inventories/locations are not wiped.
         runCatching { game.forceRemoveAllSpectators(forceLobby = true) }
 
-        game.commands.keys.forEach { uuid ->
+        val instance = instanceByGame.remove(game)
+        game.commands.keys.toList().forEach { uuid ->
+            instance?.removeActivePlayer(uuid)
             val player = Bukkit.getPlayer(uuid)
             if (player != null) {
                 MatchmakingManager.removePlayer(player)
