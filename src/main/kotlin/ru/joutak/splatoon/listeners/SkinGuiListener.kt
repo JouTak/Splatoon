@@ -18,6 +18,8 @@ class SkinGuiListener : Listener {
 
             val meta = item.itemMeta ?: return
 
+            if (!meta.hasCustomModelData()) return
+
             val id = meta.customModelData
 
             GameManager.setSkin(e.whoClicked.uniqueId, id)
