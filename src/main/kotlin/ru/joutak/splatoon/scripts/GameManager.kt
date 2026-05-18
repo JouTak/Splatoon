@@ -19,6 +19,7 @@ object GameManager {
     val arenas: MutableMap<String, World> = mutableMapOf()
     private val gamesByWorld: MutableMap<String, Game> = mutableMapOf()
     private val spectatingWorldByPlayer: MutableMap<UUID, String> = mutableMapOf()
+    private val instanceByGame: MutableMap<Game, GameInstance> = mutableMapOf()
 
     private val playerSkins: MutableMap<UUID, Int> = mutableMapOf()
 
@@ -335,6 +336,8 @@ object GameManager {
         }
 
         gamesByWorld[worldName] = game
+        instanceByGame[game] = instance
+        instance.startMatchAndSnapshotPlayers()
 
         val playersToRemove = mutableListOf<Player>()
         val teamsSnapshot = instance.teams.map { it.toList() }
