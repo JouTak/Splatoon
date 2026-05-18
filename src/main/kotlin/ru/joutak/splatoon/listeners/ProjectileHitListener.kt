@@ -321,10 +321,10 @@ class ProjectileHitListener : Listener {
                 BlockType.FULL -> null
             }
 
-            val newMat = getTeamMaterial(paintTeam, blockType)
+            val newMat = getTeamMaterial(paintTeam, blockType, game)
             if (b.type == newMat) continue
 
-            val oldTeam =  getTeamFromMaterial(b.type, blockType)
+            val oldTeam = getTeamFromMaterial(b.type, blockType, game)
             if (oldTeam != null) {
                 game.paintedCommand[oldTeam] = (game.paintedCommand[oldTeam] ?: 0) - 1
             }
@@ -364,6 +364,7 @@ class ProjectileHitListener : Listener {
         world: World,
         radius: Double,
         paintTeam: Int,
+        game: Game? = null,
     ) {
 
         val paintable = SplatoonSettings.paintableMaterials
@@ -378,7 +379,7 @@ class ProjectileHitListener : Listener {
                     BlockType.SLAB -> getSlabState(block)
                     BlockType.FULL -> null
                 }
-                val newMat = getTeamMaterial(paintTeam, blockType)
+                val newMat = getTeamMaterial(paintTeam, blockType, game)
 
                 if (block.type != newMat) {
                     block.type = newMat
@@ -405,7 +406,7 @@ class ProjectileHitListener : Listener {
                             BlockType.SLAB -> getSlabState(block)
                             BlockType.FULL -> null
                         }
-                        val newMat = getTeamMaterial(paintTeam, blockType)
+                        val newMat = getTeamMaterial(paintTeam, blockType, game)
                         if (block.type != newMat){
                             println("[DEBUG] Changing ${block.type} to $newMat at ${block.location}")
                             block.type = newMat
@@ -421,50 +422,48 @@ class ProjectileHitListener : Listener {
         }
     }
 
-    private fun getTeamMaterial(team: Int, blockType: BlockType): Material {
-        val result = when (team){
-            0 -> when (blockType) {
-                BlockType.FULL -> Material.RED_CONCRETE
-                BlockType.STAIRS -> Material.RED_NETHER_BRICK_STAIRS
-                BlockType.SLAB -> Material.RED_NETHER_BRICK_SLAB
-            }
-            1 -> when (blockType) {
-                BlockType.FULL -> Material.YELLOW_CONCRETE
-                BlockType.STAIRS -> Material.RESIN_BRICK_STAIRS
-                BlockType.SLAB -> Material.RESIN_BRICK_SLAB
-            }
-            2 -> when (blockType) {
-                BlockType.FULL -> Material.GREEN_CONCRETE
-                BlockType.STAIRS -> Material.MOSSY_COBBLESTONE_STAIRS
-                BlockType.SLAB -> Material.MOSSY_COBBLESTONE_SLAB
-            }
-            3 -> when (blockType) {
-                BlockType.FULL -> Material.BLUE_CONCRETE
-                BlockType.STAIRS -> Material.OXIDIZED_CUT_COPPER_STAIRS
-                BlockType.SLAB -> Material.OXIDIZED_CUT_COPPER_SLAB
-            }
-            else -> when (blockType) {
-                BlockType.FULL -> Material.WHITE_CONCRETE
-                BlockType.STAIRS -> Material.END_STONE_BRICK_STAIRS
-                BlockType.SLAB -> Material.END_STONE_BRICK_SLAB
-            }
-//            0 -> if (isStairs) Material.RED_NETHER_BRICK_STAIRS else Material.RED_CONCRETE
-//            1 -> if (isStairs) Material.RESIN_BRICK_STAIRS else Material.YELLOW_CONCRETE
-//            2 -> if (isStairs) Material.MOSSY_COBBLESTONE_STAIRS else Material.GREEN_CONCRETE
-//            3 -> if (isStairs) Material.OXIDIZED_CUT_COPPER_STAIRS else Material.BLUE_CONCRETE
-//            else -> if (isStairs) Material.END_STONE_BRICK_STAIRS else Material.WHITE_CONCRETE
+    private fun getTeamMaterial(team: Int, blockType: BlockType, game: Game? = null): Material {
+        val fullMat = game?.getTeamMaterial(team) ?: when (team) {
+            0 -> Material.RED_CONCRETE
+            1 -> Material.YELLOW_CONCRETE
+            2 -> Material.GREEN_CONCRETE
+            3 -> Material.BLUE_CONCRETE
+            else -> Material.WHITE_CONCRETE
         }
-        return result
+        return when (blockType) {
+            BlockType.FULL -> fullMat
+            BlockType.STAIRS -> when (team) {
+                0 -> Material.RED_NETHER_BRICK_STAIRS
+                1 -> Material.RESIN_BRICK_STAIRS
+                2 -> Material.MOSSY_COBBLESTONE_STAIRS
+                3 -> Material.OXIDIZED_CUT_COPPER_STAIRS
+                else -> Material.END_STONE_BRICK_STAIRS
+            }
+            BlockType.SLAB -> when (team) {
+                0 -> Material.RED_NETHER_BRICK_SLAB
+                1 -> Material.RESIN_BRICK_SLAB
+                2 -> Material.MOSSY_COBBLESTONE_SLAB
+                3 -> Material.OXIDIZED_CUT_COPPER_SLAB
+                else -> Material.END_STONE_BRICK_SLAB
+            }
+        }
     }
 
-    private fun getTeamFromMaterial(material: Material, blockType: BlockType): Int? {
+    private fun getTeamFromMaterial(material: Material, blockType: BlockType, game: Game? = null): Int? {
         return when (blockType) {
-            BlockType.FULL -> when (material) {
-                Material.RED_CONCRETE -> 0
-                Material.YELLOW_CONCRETE -> 1
-                Material.GREEN_CONCRETE -> 2
-                Material.BLUE_CONCRETE -> 3
-                else -> null
+            BlockType.FULL -> {
+                if (game != null) {
+                    val teams = game.commands.values.toSet()
+                    teams.firstOrNull { game.getTeamMaterial(it) == material }
+                } else {
+                    when (material) {
+                        Material.RED_CONCRETE -> 0
+                        Material.YELLOW_CONCRETE -> 1
+                        Material.GREEN_CONCRETE -> 2
+                        Material.BLUE_CONCRETE -> 3
+                        else -> null
+                    }
+                }
             }
 
             BlockType.STAIRS -> when (material) {
