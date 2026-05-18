@@ -4,6 +4,11 @@ lobby:
   world: lobby
   gun_stand_locations:
     - [69, 69, 69]
+  decorations:
+    - location: [72, 69, 69]
+      type: bomb
+    - location: [74,69,69]
+      type: gun
 
 game:
   # Match duration in seconds
@@ -63,6 +68,11 @@ spawn_protection:
   resistance_duration_ticks: 60
   resistance_amplifier: 10
   no_damage_ticks: 60
+
+skins:
+  models: [1000]
+  default: 1000
+  changer: EMERALD
 
 weapons:
   gun:

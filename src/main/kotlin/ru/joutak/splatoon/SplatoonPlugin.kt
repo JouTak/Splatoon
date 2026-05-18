@@ -20,12 +20,14 @@ import ru.joutak.splatoon.listeners.PlayerUseListener
 import ru.joutak.splatoon.listeners.ProjectileHitListener
 import ru.joutak.splatoon.listeners.JumpPadListener
 import ru.joutak.splatoon.listeners.LobbyGunPickupListener
+import ru.joutak.splatoon.listeners.SkinGuiListener
 import ru.joutak.splatoon.listeners.SpectatorWorldTeleportGuardListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
 import ru.joutak.splatoon.scripts.GameManager
 import ru.joutak.splatoon.scripts.LobbyGunStand
 import java.io.File
+import ru.joutak.splatoon.scripts.LobbyDecorationManager
 
 class SplatoonPlugin : JavaPlugin() {
     companion object {
@@ -93,6 +95,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
         Bukkit.getPluginManager().registerEvents(JumpPadListener(), this)
         Bukkit.getPluginManager().registerEvents(LobbyGunPickupListener(), this)
+        Bukkit.getPluginManager().registerEvents(SkinGuiListener(), this)
 
 
         val cmd = getCommand("splatoon")
@@ -115,6 +118,12 @@ class SplatoonPlugin : JavaPlugin() {
                 } else {
                     logger.info("No gun stand locations configured, skipping spawn")
                 }
+
+                if (SplatoonSettings.lobbyDecorationItemLocations.isNotEmpty()) {
+                    LobbyDecorationManager.spawnAll()
+                }
+
+
             } else {
                 logger.warning("Lobby world '${SplatoonSettings.lobbyWorldName}' not found! Gun stands not spawned.")
             }
@@ -135,5 +144,6 @@ class SplatoonPlugin : JavaPlugin() {
         GameManager.shutdownAllGames()
 
         LobbyGunStand.removeAll()
+        LobbyDecorationManager.removeAll()
     }
 }
