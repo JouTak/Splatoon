@@ -1727,13 +1727,9 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     }
 
     private fun teamColorCode(team: Int): String {
-        return when (team) {
-            0 -> "\u00A7c"
-            1 -> "\u00A7e"
-            2 -> "\u00A7a"
-            3 -> "\u00A79"
-            else -> "\u00A7f"
-        }
+        val char = runCatching { MiniGamesAPI.getTeamStyle(team + 1).chatColor.char }.getOrNull()
+            ?: when (team) { 0 -> 'c'; 1 -> 'e'; 2 -> 'a'; 3 -> '9'; else -> 'f' }
+        return "\u00A7$char"
     }
 
     private fun formatBossBarTitle(team: Int?, placementByTeam: Map<Int, Int>): String {
@@ -1901,13 +1897,15 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     }
 
     private fun teamLabel(team: Int?): String {
-        return when (team) {
-            0 -> "§cКрасные"
-            1 -> "§eЖёлтые"
-            2 -> "§aЗелёные"
-            3 -> "§9Синие"
-            else -> "§7-"
+        if (team == null) return "§7-"
+        val style = runCatching { MiniGamesAPI.getTeamStyle(team + 1) }.getOrNull()
+        val color = style?.chatColor?.let { "§${it.char}" } ?: when (team) {
+            0 -> "§c"; 1 -> "§e"; 2 -> "§a"; 3 -> "§9"; else -> "§7"
         }
+        val name = style?.displayNamePlain ?: when (team) {
+            0 -> "Красные"; 1 -> "Жёлтые"; 2 -> "Зелёные"; 3 -> "Синие"; else -> "-"
+        }
+        return "$color$name"
     }
 
     private fun formatAmmoLine(uuid: UUID): String {
@@ -1919,14 +1917,15 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     private fun formatTeamLine(team: Int, totalPaintable: Int, viewerTeam: Int?): String {
         val value = paintedCommand[team] ?: 0
         val percent = if (totalPaintable <= 0) 0 else ((value.toDouble() * 100.0) / totalPaintable.toDouble()).roundToInt()
-        val marker = if (viewerTeam != null && viewerTeam == team) "\u00A76\u25B6 " else ""
-        return when (team) {
-            0 -> "${marker}\u00A7cКрасная: \u00A7f$value \u00A77(${percent}%)"
-            1 -> "${marker}\u00A7eЖелтая: \u00A7f$value \u00A77(${percent}%)"
-            2 -> "${marker}\u00A7aЗеленая: \u00A7f$value \u00A77(${percent}%)"
-            3 -> "${marker}\u00A79Синяя: \u00A7f$value \u00A77(${percent}%)"
-            else -> "${marker}\u00A7fКоманда: \u00A7f$value \u00A77(${percent}%)"
+        val marker = if (viewerTeam != null && viewerTeam == team) "§6▶ " else ""
+        val style = runCatching { MiniGamesAPI.getTeamStyle(team + 1) }.getOrNull()
+        val color = style?.chatColor?.let { "§${it.char}" } ?: when (team) {
+            0 -> "§c"; 1 -> "§e"; 2 -> "§a"; 3 -> "§9"; else -> "§f"
         }
+        val name = style?.displayNamePlain ?: when (team) {
+            0 -> "Красная"; 1 -> "Желтая"; 2 -> "Зеленая"; 3 -> "Синяя"; else -> "Команда"
+        }
+        return "$marker$color$name: §f$value §7(${percent}%)"
     }
 
     private fun formatPlayerContributionLine(uuid: UUID, value: Int, teamTotal: Int): String {
