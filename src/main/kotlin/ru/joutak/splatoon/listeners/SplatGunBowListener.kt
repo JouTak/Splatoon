@@ -25,6 +25,7 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.util.Vector
+import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
@@ -200,16 +201,12 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
     }
 
-    private fun teamToColorName(team: Int): String {
-        return when (team) {
-            0 -> "Red"
-            3 -> "Blue"
-            2 -> "Green"
-            1 -> "Yellow"
-            -1 -> "White"
-            else -> "White"
+    private fun teamToColorName(team: Int): String =
+        runCatching { MiniGamesAPI.getTeamStyle(team + 1).displayNamePlain }.getOrElse {
+            when (team) {
+                0 -> "Red"; 3 -> "Blue"; 2 -> "Green"; 1 -> "Yellow"; else -> "White"
+            }
         }
-    }
 
     private fun ensureAmmoFallback(player: Player, colorName: String? = null) {
         val inv = player.inventory
