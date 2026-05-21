@@ -339,8 +339,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
         right.normalize()
 
-        val horizontalOffset = 0.32
-        val verticalOffset = -0.40
+        val horizontalOffset = 0.15
+        val verticalOffset = -0.30
         val forwardOffset = 0.5
 
         val muzzlePos = eye.clone()
@@ -348,16 +348,17 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             .add(right.multiply(horizontalOffset))
             .add(0.0, verticalOffset, 0.0)
 
-        val aimDistance = targetDistance.coerceAtLeast(5.0)
-        val aimPoint = eye.clone().add(dir.clone().multiply(aimDistance))
 
-        val shootDir = aimPoint.toVector().subtract(muzzlePos.toVector()).normalize()
+        val distance = targetDistance.coerceAtLeast(3.0)
 
-//        val leftCorrection = 0.04
-//        val upCorrection = 0.03
-//
-//        shootDir.add(right.clone().multiply(-leftCorrection))
-//        shootDir.add(vertical.multiply(upCorrection))
+        val projectileHalfWidth = 0.25
+
+        val horizontalCorrection = Math.atan2(horizontalOffset + projectileHalfWidth, distance) * 1.15
+        val verticalCorrection = Math.atan2(-verticalOffset, distance) * 0.65
+
+        val shootDir = dir.clone()
+        shootDir.add(right.clone().multiply(-horizontalCorrection))
+        shootDir.add(up.clone().multiply(verticalCorrection))
         shootDir.normalize()
 
         return muzzlePos to shootDir
