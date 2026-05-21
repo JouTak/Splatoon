@@ -18,7 +18,6 @@ import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
-import org.bukkit.entity.EntityType
 import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -768,20 +767,8 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         )
         bomb.itemMeta = bombMeta
 
-        // Skin-changer
-        val changer = ItemStack(SplatoonSettings.skinChanger, 1)
-        val changerMeta = changer.itemMeta
-        changerMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
-        changerMeta.persistentDataContainer.set(
-            NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
-            PersistentDataType.BOOLEAN,
-            true
-        )
-        changer.itemMeta = changerMeta
-
         player.inventory.addItem(gun)
         player.inventory.addItem(bomb)
-        player.inventory.setItem(8, changer.clone())
     }
 
     private fun endCeremonyAndFinalize() {
@@ -1089,17 +1076,6 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         }
         item.itemMeta = meta
 
-        // Skin-changer
-        val changer = ItemStack(SplatoonSettings.skinChanger, 1)
-        val changerMeta = changer.itemMeta
-        changerMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
-        changerMeta.persistentDataContainer.set(
-            NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
-            PersistentDataType.BOOLEAN,
-            true
-        )
-        changer.itemMeta = changerMeta
-
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
             val pGun = item.clone()
@@ -1107,7 +1083,6 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             pMeta.setCustomModelData(GameManager.getSkin(uuid))
             pGun.itemMeta = pMeta
             p.inventory.addItem(pGun)
-            p.inventory.setItem(8, changer.clone())
         }
     }
 

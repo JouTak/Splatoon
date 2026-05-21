@@ -1,9 +1,9 @@
 package ru.joutak.splatoon.config
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
 import org.bukkit.Bukkit
-import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
@@ -11,7 +11,6 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import java.lang.reflect.AccessFlag
 import java.util.logging.Logger
 import kotlin.math.ceil
 import kotlin.math.max
@@ -218,7 +217,10 @@ object SplatoonSettings {
     var skinsInventory: Inventory? = null
         private set
 
-    var skinChanger: Material = Material.EMERALD
+    var skinChangerMaterial: Material = Material.EMERALD
+        private set
+
+    var skinChanger: ItemStack = ItemStack(skinChangerMaterial, 1)
         private set
 
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
@@ -444,7 +446,17 @@ object SplatoonSettings {
             }
         }
         try {
-            skinChanger = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+            skinChangerMaterial = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+
+            skinChanger = ItemStack(skinChangerMaterial, 1)
+            val sMeta = skinChanger.itemMeta
+            sMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
+            sMeta.persistentDataContainer.set(
+                NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
+                PersistentDataType.BOOLEAN,
+                true
+            )
+            skinChanger.itemMeta = sMeta
         } catch (_: Exception) {}
 
         boostChances.clear()
