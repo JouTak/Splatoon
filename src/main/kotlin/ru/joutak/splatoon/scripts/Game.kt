@@ -323,7 +323,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             player.activePotionEffects.forEach { effect ->
                 player.removePotionEffect(effect.type)
             }
-            player.inventory.setItem(8, SplatoonSettings.skinChanger.clone())
+
             player.teleport(spawn)
         }
     }
@@ -472,7 +472,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             player.saturation = 20f
             player.fireTicks = 0
             player.health = player.maxHealth
-            player.inventory.setItem(8, SplatoonSettings.skinChanger.clone())
+
             player.teleport(lobbyLoc)
         }
 

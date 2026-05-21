@@ -185,7 +185,7 @@ object GameManager {
         player.activePotionEffects.forEach { effect ->
             player.removePotionEffect(effect.type)
         }
-        player.inventory.setItem(8, SplatoonSettings.skinChanger.clone())
+
         player.teleport(spawn)
     }
 
