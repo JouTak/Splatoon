@@ -217,7 +217,7 @@ object SplatoonSettings {
     var skinsInventory: Inventory? = null
         private set
 
-    var skinChangerMaterial: Material = Material.EMERALD
+    var skinChangerMaterial: Material = Material.GOLD_INGOT
         private set
 
     var skinChanger: ItemStack = ItemStack(skinChangerMaterial, 1)
@@ -446,11 +446,11 @@ object SplatoonSettings {
             }
         }
         try {
-            skinChangerMaterial = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+            skinChangerMaterial = Material.valueOf(config.getString("skins.changer", "GOLD_INGOT")!!)
 
             skinChanger = ItemStack(skinChangerMaterial, 1)
             val sMeta = skinChanger.itemMeta
-            sMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GREEN))
+            sMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GOLD))
             sMeta.persistentDataContainer.set(
                 NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
                 PersistentDataType.BOOLEAN,
