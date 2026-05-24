@@ -58,7 +58,7 @@ class PlayerToggleSneakListener : Listener {
             }
 
             val team = game.commands[uuid] ?: return@Runnable
-            val teamMaterial = game.commandColors[team] ?: return@Runnable
+            val teamMaterial = game.getTeamMaterial(team)
 
             val loc = player.location
             val step = SplatoonSettings.sneakOnInkScanStepBlocks

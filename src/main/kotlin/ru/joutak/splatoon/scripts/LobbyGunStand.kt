@@ -3,10 +3,8 @@ package ru.joutak.splatoon.scripts
 import org.bukkit.Bukkit
 import org.bukkit.Location
 import org.bukkit.Material
-import org.bukkit.entity.Display
 import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
-import org.bukkit.inventory.ItemStack
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.commands.AdminItems
 import ru.joutak.splatoon.config.SplatoonSettings
@@ -63,6 +61,10 @@ object LobbyGunStand {
                         org.bukkit.persistence.PersistentDataType.BOOLEAN
                     )
         }
+    }
+
+    fun isGunStand(location: Location): Boolean {
+        return displays.containsKey(location)
     }
 
     fun getLocations(): Set<Location> = displays.keys
