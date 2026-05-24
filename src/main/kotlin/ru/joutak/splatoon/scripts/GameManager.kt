@@ -186,6 +186,7 @@ object GameManager {
         player.activePotionEffects.forEach { effect ->
             player.removePotionEffect(effect.type)
         }
+
         player.teleport(spawn)
     }
 
