@@ -22,7 +22,7 @@ fun giveSplatBomb() : ItemStack {
 }
 
 fun giveBacillus() : ItemStack {
-    val item = ItemStack(Material.AMETHYST_SHARD, 1)
+    val item = ItemStack(Material.LINGERING_POTION, 1)
     val meta = item.itemMeta
     val plugin = SplatoonPlugin.instance
     meta.displayName(
