@@ -34,7 +34,9 @@ class BacillusCloudTask : BukkitRunnable() {
                 val radius = cloud.radius.toDouble()
 
                 val playersInCloud = cloud.getNearbyEntities(radius, radius, radius)
-                    .filterIsInstance<Player>()
+                    .filterIsInstance<Player>().filter { player ->
+                        player.location.distance(cloud.location) <= radius + 0.5
+                    }
 
                 for (player in playersInCloud) {
                     val game = GameManager.playerGame[player.uniqueId] ?: continue
@@ -47,7 +49,7 @@ class BacillusCloudTask : BukkitRunnable() {
                     if (now - lastInfected < SplatoonSettings.bacillusInfectionCooldownMs) continue
 
                     recentlyInfected[player.uniqueId] = now
-                    game.applyAmmoOverride(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
+                    game.setTemporaryTeam(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
 
                     player.world.playSound(player.location, org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.8f, 1.2f)
 

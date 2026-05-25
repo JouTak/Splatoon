@@ -101,7 +101,7 @@ bacillus:
   duration_seconds: 5
   range_blocks: 3.2
   cooldown_ms: 250
-  cloud_radius: 3.0          
+  cloud_radius: 3.0
   cloud_duration_seconds: 5.0
   cloud_check_period_ticks: 10
   infection_cooldown_ms: 2000

@@ -8,6 +8,7 @@ import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
+import org.bukkit.ChatColor
 import org.bukkit.GameMode
 import org.bukkit.GameRule
 import org.bukkit.Location
@@ -86,6 +87,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         1 to Material.YELLOW_CONCRETE
     )
     var commands: MutableMap<UUID, Int> = mutableMapOf()
+    private val originalTeam: MutableMap<UUID, Int> = mutableMapOf()
 
     private val playerNames: MutableMap<UUID, String> = mutableMapOf()
     private val playerTeamsSnapshot: MutableMap<UUID, Int> = mutableMapOf()
@@ -1953,5 +1955,89 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             return
         }
         player.addPotionEffect(PotionEffect(PotionEffectType.GLOWING, 40, 0, false, false, false))
+    }
+
+    fun setTemporaryTeam(uuid: UUID, newTeam: Int, durationMs: Long) {
+        val currentTeam = commands[uuid] ?: return
+        if (!originalTeam.containsKey(uuid)) {
+            originalTeam[uuid] = currentTeam
+        }
+
+        commands[uuid] = newTeam
+
+        applyAmmoOverride(uuid, newTeam, durationMs)
+
+        Bukkit.getScheduler().runTaskLater(SplatoonPlugin.instance, Runnable {
+            restoreOriginalTeam(uuid)
+        }, durationMs / 50)
+    }
+
+    fun restoreOriginalTeam(uuid: UUID) {
+        val original = originalTeam.remove(uuid) ?: return
+        commands[uuid] = original
+        val override = ammoOverride[uuid]
+        if (override != null && override.first != original) {
+            ammoOverride.remove(uuid)
+        }
+        val player = Bukkit.getPlayer(uuid)
+        if (player != null) {
+            updatePlayerGlowColor(player)
+        }
+    }
+
+    fun getCurrentTeamForGlow(uuid: UUID): Int {
+        return commands[uuid] ?: 0
+    }
+
+    fun updatePlayerGlowColor(player: Player) {
+        val team = getCurrentTeamForGlow(player.uniqueId)
+        val color = when (team) {
+            0 -> ChatColor.RED
+            1 -> ChatColor.YELLOW
+            2 -> ChatColor.GREEN
+            3 -> ChatColor.BLUE
+            else -> ChatColor.WHITE
+        }
+        player.removePotionEffect(PotionEffectType.GLOWING)
+        if (SplatoonSettings.bacillusGlowEnabled) {
+            player.addPotionEffect(PotionEffect(
+                PotionEffectType.GLOWING,
+                SplatoonSettings.bacillusDurationSeconds * 20,
+                0,
+                false,
+                false,
+                true
+            ))
+            updateGlowTeamColor(player, team)
+        }
+    }
+
+    private fun updateGlowTeamColor(player: Player, team: Int) {
+        val scoreboard = player.scoreboard ?: Bukkit.getScoreboardManager().newScoreboard
+        val teamName = "glow_team_$team"
+        var teamObj = scoreboard.getTeam(teamName)
+
+        if (teamObj == null) {
+            teamObj = scoreboard.registerNewTeam(teamName)
+            teamObj.color = when (team) {
+                0 -> ChatColor.RED
+                1 -> ChatColor.YELLOW
+                2 -> ChatColor.GREEN
+                3 -> ChatColor.BLUE
+                else -> ChatColor.WHITE
+            }
+            teamObj.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER)
+            teamObj.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.NEVER)
+        }
+
+        if (!teamObj.hasEntry(player.name)) {
+            scoreboard.getTeams().filter { it.name.startsWith("glow_team_") && it.hasEntry(player.name) }
+                .forEach { it.removeEntry(player.name) }
+            teamObj.addEntry(player.name)
+        }
+
+        if (player.scoreboard != scoreboard) {
+            player.scoreboard = scoreboard
+        }
     }
 }
