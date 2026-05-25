@@ -1,10 +1,18 @@
 package ru.joutak.splatoon.config
 
-import org.bukkit.Location
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextColor
+import org.bukkit.Bukkit
 import org.bukkit.Material
+import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
-import java.lang.reflect.AccessFlag
+import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemStack
+import org.bukkit.persistence.PersistentDataType
+import ru.joutak.splatoon.SplatoonPlugin
 import java.util.logging.Logger
+import kotlin.math.ceil
 import kotlin.math.max
 
 data class SpawnPoint(
@@ -218,7 +226,21 @@ object SplatoonSettings {
     var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
         private set
 
+    var defaultSkin: Int = 1000
+        private set
+
+    var skinsInventory: Inventory? = null
+        private set
+
+    var skinChangerMaterial: Material = Material.GOLD_INGOT
+        private set
+
+    var skinChanger: ItemStack = ItemStack(skinChangerMaterial, 1)
+        private set
+
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
+
+    val lobbyDecorationItemLocations: MutableList<MutableMap<String, Any>> = mutableListOf()
 
     val boostLocations: MutableList<List<Double>> = mutableListOf()
     val boostChances: MutableMap<String, List<Int>> = mutableMapOf()
@@ -227,16 +249,21 @@ object SplatoonSettings {
     val arenasById: MutableMap<String, ArenaSettings> = mutableMapOf()
 
     val paintableMaterials: Set<Material> = setOf(
-        Material.WHITE_CONCRETE,
         Material.RED_CONCRETE,
-        Material.YELLOW_CONCRETE,
-        Material.GREEN_CONCRETE,
-        Material.BLUE_CONCRETE,
         Material.RED_NETHER_BRICK_STAIRS,
+        Material.RED_NETHER_BRICK_SLAB,
+        Material.YELLOW_CONCRETE,
         Material.RESIN_BRICK_STAIRS,
+        Material.RESIN_BRICK_SLAB,
+        Material.GREEN_CONCRETE,
         Material.MOSSY_COBBLESTONE_STAIRS,
+        Material.MOSSY_COBBLESTONE_SLAB,
+        Material.BLUE_CONCRETE,
         Material.OXIDIZED_CUT_COPPER_STAIRS,
-        Material.END_STONE_BRICK_STAIRS
+        Material.OXIDIZED_CUT_COPPER_SLAB,
+        Material.WHITE_CONCRETE,
+        Material.END_STONE_BRICK_STAIRS,
+        Material.END_STONE_BRICK_SLAB
     )
 
     fun load(config: YamlConfiguration, logger: Logger) {
@@ -402,6 +429,25 @@ object SplatoonSettings {
             logger.info("lobby.gun_stand_locations is empty; gun stands will not be spawned")
         }
 
+        lobbyDecorationItemLocations.clear()
+        val decorationList = config.getList("lobby.decorations") ?: emptyList<Any>()
+        for (item in decorationList){
+            val map = item as? Map<*, *> ?: continue
+            val rawCoord = map["location"] as? List<*> ?: continue
+            val coords = parseCoord3(rawCoord) ?: continue
+            val type = (map["type"] as? String)?.lowercase() ?: "bomb"
+
+            val decoration = mutableMapOf<String, Any>(
+                "x" to coords[0],
+                "y" to coords[1],
+                "z" to coords[2],
+                "type" to type
+            )
+
+            lobbyDecorationItemLocations.add(decoration)
+        }
+
+
         boostLocations.clear()
         val locList = config.getList("boosts.locations") ?: config.getList("boost_locations") ?: emptyList<Any>()
         for (item in locList) {
@@ -413,7 +459,46 @@ object SplatoonSettings {
             logger.warning("boosts.locations is empty; using fallback [0,0,0]")
         }
 
+        defaultSkin = config.getInt("skins.default", 1000)
+        val item = ItemStack(Material.CROSSBOW, 1)
+        val meta = item.itemMeta
+        meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
+        meta.persistentDataContainer.set(
+            NamespacedKey(SplatoonPlugin.instance, "splatGun"),
+            PersistentDataType.BOOLEAN,
+            true
+        )
+        item.itemMeta = meta
+        val models = config.getList("skins.models") ?: emptyList<Any>()
+        if (!models.isEmpty()) {
+            val size = (ceil(models.size / 9.0) * 9).toInt()
+            skinsInventory = Bukkit.createInventory(null, size, "Установить скин")
+            var cell = 0
+            for (any in models) {
+                try {
+                    val id = any.toString().toInt()
+                    val copy = item.clone()
+                    val copyMeta = copy.itemMeta
+                    copyMeta.setCustomModelData(id)
+                    copy.itemMeta = copyMeta
+                    skinsInventory?.setItem(cell, copy)
+                    cell += 1
+                } catch (_: Exception) {}
+            }
+        }
+        try {
+            skinChangerMaterial = Material.valueOf(config.getString("skins.changer", "GOLD_INGOT")!!)
 
+            skinChanger = ItemStack(skinChangerMaterial, 1)
+            val sMeta = skinChanger.itemMeta
+            sMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GOLD))
+            sMeta.persistentDataContainer.set(
+                NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
+                PersistentDataType.BOOLEAN,
+                true
+            )
+            skinChanger.itemMeta = sMeta
+        } catch (_: Exception) {}
 
         boostChances.clear()
         val bombChance = config.getInt("boosts.chances.bomb", 0).coerceAtLeast(0)
@@ -476,6 +561,18 @@ object SplatoonSettings {
             arenas.add(s)
             arenasById[id] = s
         }
+    }
+
+    fun getSkins(): Inventory? {
+        if (skinsInventory == null) return null
+
+        val copy = Bukkit.createInventory(null, skinsInventory!!.size, "Установить скин")
+
+        skinsInventory!!.contents.forEachIndexed { i, item ->
+            copy.setItem(i, item?.clone())
+        }
+
+        return copy
     }
 
     private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {

@@ -19,7 +19,6 @@ import org.bukkit.attribute.Attribute
 import org.bukkit.boss.BarColor
 import org.bukkit.boss.BarStyle
 import org.bukkit.boss.BossBar
-import org.bukkit.entity.EntityType
 import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -80,12 +79,16 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     var paintedPerson: MutableMap<UUID, Int> = mutableMapOf()
     val kills: MutableMap<UUID, Int> = mutableMapOf()
 
-    val commandColors: Map<Int, Material> = mapOf(
-        0 to Material.RED_CONCRETE,
-        3 to Material.BLUE_CONCRETE,
-        2 to Material.GREEN_CONCRETE,
-        1 to Material.YELLOW_CONCRETE
-    )
+    fun getTeamMaterial(teamIndex: Int): Material =
+        runCatching { MiniGamesAPI.getTeamStyle(teamIndex + 1).material }
+            .getOrElse {
+                when (teamIndex) {
+                    0 -> Material.RED_CONCRETE
+                    1 -> Material.YELLOW_CONCRETE
+                    2 -> Material.GREEN_CONCRETE
+                    else -> Material.BLUE_CONCRETE
+                }
+            }
     var commands: MutableMap<UUID, Int> = mutableMapOf()
     private val originalTeam: MutableMap<UUID, Int> = mutableMapOf()
 
@@ -326,6 +329,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             player.activePotionEffects.forEach { effect ->
                 player.removePotionEffect(effect.type)
             }
+
             player.teleport(spawn)
         }
     }
@@ -474,6 +478,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             player.saturation = 20f
             player.fireTicks = 0
             player.health = player.maxHealth
+
             player.teleport(lobbyLoc)
         }
 
@@ -750,6 +755,8 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             true
         )
 
+        gunMeta.setCustomModelData(GameManager.getSkin(player.uniqueId))
+
         (gunMeta as? CrossbowMeta)?.let { crossbow ->
             if (crossbow.chargedProjectiles.isEmpty()) {
                 runCatching { crossbow.addChargedProjectile(ItemStack(Material.ARROW, 1)) }
@@ -810,26 +817,16 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                     }
 
                     targets.forEach { p ->
-                        val colors = mapOf(
-                            0 to Component.text("Ваша команда: Красные!", NamedTextColor.RED),
-                            3 to Component.text("Ваша команда: Синие!", NamedTextColor.BLUE),
-                            2 to Component.text("Ваша команда: Зелёные!", NamedTextColor.GREEN),
-                            1 to Component.text("Ваша команда: Жёлтые!", NamedTextColor.YELLOW)
-                        )
-                        val subtitle = colors[commands[p.uniqueId]]
-                            ?: Component.text("Матч начинается!", NamedTextColor.GRAY)
-
-                        val titleColor = when (commands[p.uniqueId]) {
-                            0 -> NamedTextColor.RED
-                            1 -> NamedTextColor.YELLOW
-                            2 -> NamedTextColor.GREEN
-                            3 -> NamedTextColor.BLUE
-                            else -> NamedTextColor.GOLD
+                        val teamIndex = commands[p.uniqueId]
+                        val style = teamIndex?.let {
+                            runCatching { MiniGamesAPI.getTeamStyle(it + 1) }.getOrNull()
                         }
+                        val teamColor = style?.color ?: NamedTextColor.GRAY
+                        val teamName = style?.displayNamePlain ?: "Команда"
 
                         val titleObj = Title.title(
-                            Component.text("ПОДГОТОВКА!", titleColor),
-                            subtitle,
+                            Component.text("ПОДГОТОВКА!", teamColor),
+                            Component.text("Ваша команда: $teamName!", teamColor),
                             Title.Times.times(Duration.ofMillis(200), Duration.ofMillis(1800), Duration.ofMillis(200))
                         )
                         p.showTitle(titleObj)
@@ -1079,7 +1076,11 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
         commands.keys.forEach { uuid ->
             val p = Bukkit.getPlayer(uuid) ?: return@forEach
-            p.inventory.addItem(item.clone())
+            val pGun = item.clone()
+            val pMeta = pGun.itemMeta
+            pMeta.setCustomModelData(GameManager.getSkin(uuid))
+            pGun.itemMeta = pMeta
+            p.inventory.addItem(pGun)
         }
     }
 
@@ -1302,7 +1303,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         paintedCommand.keys.forEach { paintedCommand[it] = 0 }
 
         val materialToTeam = mutableMapOf<Material, Int>()
-        commandColors.forEach { (team, mat) -> materialToTeam[mat] = team }
+        paintedCommand.keys.forEach { team -> materialToTeam[getTeamMaterial(team)] = team }
 
         val paintable = setOf(
             Material.WHITE_CONCRETE,
@@ -1705,13 +1706,9 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     }
 
     private fun teamColorCode(team: Int): String {
-        return when (team) {
-            0 -> "\u00A7c"
-            1 -> "\u00A7e"
-            2 -> "\u00A7a"
-            3 -> "\u00A79"
-            else -> "\u00A7f"
-        }
+        val char = runCatching { MiniGamesAPI.getTeamStyle(team + 1).chatColor.char }.getOrNull()
+            ?: when (team) { 0 -> 'c'; 1 -> 'e'; 2 -> 'a'; 3 -> '9'; else -> 'f' }
+        return "\u00A7$char"
     }
 
     private fun formatBossBarTitle(team: Int?, placementByTeam: Map<Int, Int>): String {
@@ -1879,13 +1876,15 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     }
 
     private fun teamLabel(team: Int?): String {
-        return when (team) {
-            0 -> "§cКрасные"
-            1 -> "§eЖёлтые"
-            2 -> "§aЗелёные"
-            3 -> "§9Синие"
-            else -> "§7-"
+        if (team == null) return "§7-"
+        val style = runCatching { MiniGamesAPI.getTeamStyle(team + 1) }.getOrNull()
+        val color = style?.chatColor?.let { "§${it.char}" } ?: when (team) {
+            0 -> "§c"; 1 -> "§e"; 2 -> "§a"; 3 -> "§9"; else -> "§7"
         }
+        val name = style?.displayNamePlain ?: when (team) {
+            0 -> "Красные"; 1 -> "Жёлтые"; 2 -> "Зелёные"; 3 -> "Синие"; else -> "-"
+        }
+        return "$color$name"
     }
 
     private fun formatAmmoLine(uuid: UUID): String {
@@ -1897,14 +1896,15 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
     private fun formatTeamLine(team: Int, totalPaintable: Int, viewerTeam: Int?): String {
         val value = paintedCommand[team] ?: 0
         val percent = if (totalPaintable <= 0) 0 else ((value.toDouble() * 100.0) / totalPaintable.toDouble()).roundToInt()
-        val marker = if (viewerTeam != null && viewerTeam == team) "\u00A76\u25B6 " else ""
-        return when (team) {
-            0 -> "${marker}\u00A7cКрасная: \u00A7f$value \u00A77(${percent}%)"
-            1 -> "${marker}\u00A7eЖелтая: \u00A7f$value \u00A77(${percent}%)"
-            2 -> "${marker}\u00A7aЗеленая: \u00A7f$value \u00A77(${percent}%)"
-            3 -> "${marker}\u00A79Синяя: \u00A7f$value \u00A77(${percent}%)"
-            else -> "${marker}\u00A7fКоманда: \u00A7f$value \u00A77(${percent}%)"
+        val marker = if (viewerTeam != null && viewerTeam == team) "§6▶ " else ""
+        val style = runCatching { MiniGamesAPI.getTeamStyle(team + 1) }.getOrNull()
+        val color = style?.chatColor?.let { "§${it.char}" } ?: when (team) {
+            0 -> "§c"; 1 -> "§e"; 2 -> "§a"; 3 -> "§9"; else -> "§f"
         }
+        val name = style?.displayNamePlain ?: when (team) {
+            0 -> "Красная"; 1 -> "Желтая"; 2 -> "Зеленая"; 3 -> "Синяя"; else -> "Команда"
+        }
+        return "$marker$color$name: §f$value §7(${percent}%)"
     }
 
     private fun formatPlayerContributionLine(uuid: UUID, value: Int, teamTotal: Int): String {

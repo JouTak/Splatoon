@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.CrossbowMeta
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.config.SplatoonSettings
 
 object AdminItems {
 
@@ -19,6 +20,8 @@ object AdminItems {
         meta.displayName(Component.text("Сплат-пушка").color(TextColor.color(0xFF55FF)))
         meta.persistentDataContainer.set(NamespacedKey(plugin, "splatGun"), PersistentDataType.BOOLEAN, true)
         markAdmin(meta.persistentDataContainer, team)
+
+        meta.setCustomModelData(SplatoonSettings.defaultSkin)
 
         // Держим арбалет визуально "заряженным" всегда, чтобы моделька не дёргалась.
         (meta as? CrossbowMeta)?.let { crossbow ->
