@@ -153,6 +153,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
 	    	player.world.spawn(muzzle, Snowball::class.java) { projectile ->
             projectile.item = ItemStack(Material.AIR, 1)
+                projectile.isInvisible = true
             projectile.setGravity(!SplatoonSettings.gunDisableGravity)
             projectile.velocity = correctedDir.clone().multiply(SplatoonSettings.gunVelocity)
             projectile.shooter = player
@@ -167,11 +168,11 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             projectile.setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
 
             val display = player.world.spawn(projectile.location, ItemDisplay::class.java).apply {
-	                setItemStack(projectileItem)
+                setItemStack(projectileItem)
                 billboard = Display.Billboard.FIXED
                 disableDisplayInterpolation(this)
 
-                isInvisible = true
+//                isInvisible = true
 
 //                plugin.server.scheduler.runTaskLater(plugin, Runnable{
 //                    if (!this.isDead) {
@@ -208,6 +209,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     private fun createProjectileItem(name: String): ItemStack {
         val stack = ItemStack(Material.WIND_CHARGE, 1)
         stack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name))
+        stack.setData(DataComponentTypes.ITEM_NAME, Component.text(name))
         return stack
     }
 
@@ -220,12 +222,16 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
     }
 
-    private fun teamToColorName(team: Int): String =
-        runCatching { MiniGamesAPI.getTeamStyle(team + 1).displayNamePlain }.getOrElse {
-            when (team) {
-                0 -> "Red"; 3 -> "Blue"; 2 -> "Green"; 1 -> "Yellow"; else -> "White"
-            }
+    private fun teamToColorName(team: Int): String {
+        return when (team) {
+            0 -> "Red"
+            3 -> "Blue"
+            2 -> "Green"
+            1 -> "Yellow"
+            -1 -> "White"
+            else -> "White"
         }
+    }
 
     private fun ensureAmmoFallback(player: Player, colorName: String? = null) {
         val inv = player.inventory
