@@ -8,6 +8,7 @@ import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import net.kyori.adventure.title.Title
 import org.bukkit.Bukkit
+import org.bukkit.ChatColor
 import org.bukkit.GameMode
 import org.bukkit.GameRule
 import org.bukkit.Location
@@ -89,6 +90,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
                 }
             }
     var commands: MutableMap<UUID, Int> = mutableMapOf()
+    private val originalTeam: MutableMap<UUID, Int> = mutableMapOf()
 
     private val playerNames: MutableMap<UUID, String> = mutableMapOf()
     private val playerTeamsSnapshot: MutableMap<UUID, Int> = mutableMapOf()
