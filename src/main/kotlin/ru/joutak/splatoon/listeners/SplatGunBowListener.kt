@@ -25,6 +25,7 @@ import org.bukkit.persistence.PersistentDataType
 import org.bukkit.plugin.Plugin
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.util.Vector
+import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.Game
 import ru.joutak.splatoon.scripts.GameManager
@@ -131,8 +132,19 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         ensureAmmoFallback(player, colorName)
 
         val projectileItem = createProjectileItem(colorName)
-        val dir = player.eyeLocation.direction.normalize()
-        val muzzle = muzzleLocation(player.eyeLocation, dir)
+
+        var targetDistance = 50.0
+        val targetBlock = player.getTargetBlockExact(50)
+        if (targetBlock != null) {
+            targetDistance = player.eyeLocation.distance(targetBlock.location)
+        }
+
+        val (muzzle, correctedDir) = muzzleLocation(
+            player.eyeLocation,
+            player.eyeLocation.direction,
+            targetDistance
+        )
+
         val inCeremony = GameManager.getCeremonyBounds(player.uniqueId)?.worldName == player.world.name
 
         // Мягкий "красящий" звук вместо любых звуков арбалета.
@@ -141,8 +153,9 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
 
 	    	player.world.spawn(muzzle, Snowball::class.java) { projectile ->
             projectile.item = ItemStack(Material.AIR, 1)
+                projectile.isInvisible = true
             projectile.setGravity(!SplatoonSettings.gunDisableGravity)
-            projectile.velocity = dir.clone().multiply(SplatoonSettings.gunVelocity)
+            projectile.velocity = correctedDir.clone().multiply(SplatoonSettings.gunVelocity)
             projectile.shooter = player
 
             if (inCeremony) {
@@ -155,9 +168,17 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
             projectile.setMetadata("shooterId", FixedMetadataValue(plugin, player.uniqueId.toString()))
 
             val display = player.world.spawn(projectile.location, ItemDisplay::class.java).apply {
-	                setItemStack(projectileItem)
+                setItemStack(projectileItem)
                 billboard = Display.Billboard.FIXED
                 disableDisplayInterpolation(this)
+
+//                isInvisible = true
+
+//                plugin.server.scheduler.runTaskLater(plugin, Runnable{
+//                    if (!this.isDead) {
+//                        this.isInvisible = false
+//                    }
+//                }, 2)
             }
             projectile.addPassenger(display)
         }
@@ -188,6 +209,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     private fun createProjectileItem(name: String): ItemStack {
         val stack = ItemStack(Material.WIND_CHARGE, 1)
         stack.setData(DataComponentTypes.CUSTOM_NAME, Component.text(name))
+        stack.setData(DataComponentTypes.ITEM_NAME, Component.text(name))
         return stack
     }
 
@@ -311,7 +333,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         item.itemMeta = meta
     }
 
-    private fun muzzleLocation(eye: Location, dir: Vector): Location {
+
+    private fun muzzleLocation(eye: Location, dir: Vector, targetDistance: Double = 50.0): Pair<Location, Vector> {
         val up = Vector(0.0, 1.0, 0.0)
         var right = dir.clone().crossProduct(up)
         if (right.lengthSquared() < 1e-6) {
@@ -319,11 +342,31 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         }
         right.normalize()
 
-        // Смещаем старт ближе к пушке: вперёд + вправо + чуть вниз (к руке)
-        return eye.clone()
-            .add(dir.clone().multiply(1.50))
-            .add(right.multiply(0.32))
-            .add(0.0, -0.40, 0.0)
+        val horizontalOffset = 0.15
+        val verticalOffset = -0.30
+        val forwardOffset = 0.5
+
+        val muzzlePos = eye.clone()
+            .add(dir.clone().multiply(forwardOffset))
+            .add(right.multiply(horizontalOffset))
+            .add(0.0, verticalOffset, 0.0)
+
+
+        val distance = targetDistance.coerceAtLeast(3.0)
+
+        val projectileHalfWidth = 0.25
+
+        val horizontalCorrection = Math.atan2(horizontalOffset + projectileHalfWidth, distance) * 1.15
+        val verticalCorrection = Math.atan2(-verticalOffset, distance) * 0.65
+
+        val shootDir = dir.clone()
+        shootDir.add(right.clone().multiply(-horizontalCorrection))
+        shootDir.add(up.clone().multiply(verticalCorrection))
+        shootDir.normalize()
+
+        return muzzlePos to shootDir
+
+
     }
 
 }

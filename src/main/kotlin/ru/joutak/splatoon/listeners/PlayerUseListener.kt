@@ -34,7 +34,7 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
         val itemInHand = player.inventory.itemInMainHand
 
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return
-        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY) && itemInHand.type != SplatoonSettings.skinChanger) return
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY) && itemInHand.type != SplatoonSettings.skinChangerMaterial) return
 
         if (itemInHand.type == Material.AIR) return
 

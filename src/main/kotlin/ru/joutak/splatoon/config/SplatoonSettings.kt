@@ -1,9 +1,9 @@
 package ru.joutak.splatoon.config
 
 import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.format.TextColor
 import org.bukkit.Bukkit
-import org.bukkit.Location
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
@@ -11,7 +11,6 @@ import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
-import java.lang.reflect.AccessFlag
 import java.util.logging.Logger
 import kotlin.math.ceil
 import kotlin.math.max
@@ -170,6 +169,21 @@ object SplatoonSettings {
     var bacillusCooldownMs: Long = 250
         private set
 
+    var bacillusCloudRadius: Float = 3.0f
+        private set
+
+    var bacillusCloudDurationTicks: Int = 100  // 5 секунд
+        private set
+
+    var bacillusCloudCheckPeriodTicks: Long = 10  // 0.5 секунды
+        private set
+
+    var bacillusInfectionCooldownMs: Long = 2000  // 2 секунды между заражениями
+        private set
+
+    var bacillusGlowEnabled: Boolean = true
+        private set
+
     var sneakOnInkEnabled: Boolean = true
         private set
 
@@ -218,7 +232,10 @@ object SplatoonSettings {
     var skinsInventory: Inventory? = null
         private set
 
-    var skinChanger: Material = Material.EMERALD
+    var skinChangerMaterial: Material = Material.GOLD_INGOT
+        private set
+
+    var skinChanger: ItemStack = ItemStack(skinChangerMaterial, 1)
         private set
 
     val lobbyGunLocations: MutableList<List<Double>> = mutableListOf()
@@ -470,7 +487,17 @@ object SplatoonSettings {
             }
         }
         try {
-            skinChanger = Material.valueOf(config.getString("skins.changer", "EMERALD")!!)
+            skinChangerMaterial = Material.valueOf(config.getString("skins.changer", "GOLD_INGOT")!!)
+
+            skinChanger = ItemStack(skinChangerMaterial, 1)
+            val sMeta = skinChanger.itemMeta
+            sMeta.displayName(Component.text("Изменить скин").color(NamedTextColor.GOLD))
+            sMeta.persistentDataContainer.set(
+                NamespacedKey(SplatoonPlugin.instance, "skinChanger"),
+                PersistentDataType.BOOLEAN,
+                true
+            )
+            skinChanger.itemMeta = sMeta
         } catch (_: Exception) {}
 
         boostChances.clear()
@@ -491,6 +518,11 @@ object SplatoonSettings {
         bacillusDurationSeconds = max(0, config.getInt("bacillus.duration_seconds", 5))
         bacillusRangeBlocks = config.getDouble("bacillus.range_blocks", 3.2).coerceAtLeast(0.0)
         bacillusCooldownMs = max(0, config.getLong("bacillus.cooldown_ms", 250))
+        bacillusCloudRadius = config.getDouble("bacillus.cloud_radius", 3.0).toFloat().coerceAtLeast(0.5f)
+        bacillusCloudDurationTicks = (config.getDouble("bacillus.cloud_duration_seconds", 5.0) * 20).toInt().coerceAtLeast(20)
+        bacillusCloudCheckPeriodTicks = config.getLong("bacillus.cloud_check_period_ticks", 10).coerceAtLeast(5)
+        bacillusInfectionCooldownMs = config.getLong("bacillus.infection_cooldown_ms", 2000).coerceAtLeast(500)
+        bacillusGlowEnabled = config.getBoolean("bacillus.glow_effect", true)
 
 
         sneakOnInkEnabled = config.getBoolean("movement.sneak_on_ink.enabled", true)

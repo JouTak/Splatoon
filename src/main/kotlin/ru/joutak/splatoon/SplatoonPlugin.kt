@@ -9,6 +9,7 @@ import ru.joutak.minigames.managers.MatchmakingManager
 import ru.joutak.splatoon.commands.SplatoonCommand
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.listeners.BacillusHitListener
+import ru.joutak.splatoon.listeners.BacillusThrowListener
 import ru.joutak.splatoon.listeners.BoostPickupListener
 import ru.joutak.splatoon.listeners.CeremonyMoveListener
 import ru.joutak.splatoon.listeners.DamageGuardListener
@@ -24,6 +25,7 @@ import ru.joutak.splatoon.listeners.SkinGuiListener
 import ru.joutak.splatoon.listeners.SpectatorWorldTeleportGuardListener
 import ru.joutak.splatoon.listeners.SplatGunBowListener
 import ru.joutak.splatoon.listeners.SplatGunProtectionListener
+import ru.joutak.splatoon.scripts.BacillusCloudTask
 import ru.joutak.splatoon.scripts.GameManager
 import ru.joutak.splatoon.scripts.LobbyGunStand
 import java.io.File
@@ -86,7 +88,7 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
         Bukkit.getPluginManager().registerEvents(DamageGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(NaturalRegenerationListener(), this)
-        Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
+//        Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunProtectionListener(this), this)
         Bukkit.getPluginManager().registerEvents(PlayerSessionListener(), this)
         Bukkit.getPluginManager().registerEvents(SpectatorWorldTeleportGuardListener(), this)
@@ -95,6 +97,9 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerMoveOnIceListener(), this)
         Bukkit.getPluginManager().registerEvents(JumpPadListener(), this)
         Bukkit.getPluginManager().registerEvents(LobbyGunPickupListener(), this)
+        Bukkit.getPluginManager().registerEvents(BacillusThrowListener(this), this)
+
+        BacillusCloudTask().start()
         Bukkit.getPluginManager().registerEvents(SkinGuiListener(), this)
 
 
