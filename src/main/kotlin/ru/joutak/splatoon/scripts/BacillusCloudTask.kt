@@ -61,7 +61,7 @@ class BacillusCloudTask : BukkitRunnable() {
 
                     val title = Title.title(
                         Component.text("☣ ЗАРАЖЕНИЕ!", NamedTextColor.LIGHT_PURPLE),
-                        Component.text("Теперь вы красите цветом врага!", NamedTextColor.GRAY),
+                        Component.text("Теперь вы красите пол цветом врага!", NamedTextColor.GRAY),
                         Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(1400), Duration.ofMillis(150))
                     )
                     player.showTitle(title)
