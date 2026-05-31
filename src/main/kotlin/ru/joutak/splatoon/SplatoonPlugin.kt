@@ -35,6 +35,7 @@ class SplatoonPlugin : JavaPlugin() {
     companion object {
         @JvmStatic
         lateinit var instance: SplatoonPlugin
+        lateinit var projectileHitListener: ProjectileHitListener
     }
 
     private fun loadConfig() {
@@ -85,7 +86,8 @@ class SplatoonPlugin : JavaPlugin() {
         Bukkit.getPluginManager().registerEvents(PlayerToggleSneakListener(), this)
         Bukkit.getPluginManager().registerEvents(PlayerUseListener(this), this)
         Bukkit.getPluginManager().registerEvents(SplatGunBowListener(this), this)
-        Bukkit.getPluginManager().registerEvents(ProjectileHitListener(), this)
+        projectileHitListener = ProjectileHitListener()
+        Bukkit.getPluginManager().registerEvents(projectileHitListener, this)
         Bukkit.getPluginManager().registerEvents(DamageGuardListener(), this)
         Bukkit.getPluginManager().registerEvents(NaturalRegenerationListener(), this)
 //        Bukkit.getPluginManager().registerEvents(BacillusHitListener(this), this)

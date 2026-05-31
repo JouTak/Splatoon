@@ -359,7 +359,7 @@ class ProjectileHitListener : Listener {
         }
     }
 
-    private fun safePaintInRadius(
+    fun safePaintInRadius(
         center: Location,
         world: World,
         radius: Double,
