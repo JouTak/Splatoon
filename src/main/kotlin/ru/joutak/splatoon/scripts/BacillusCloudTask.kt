@@ -128,7 +128,7 @@ class BacillusCloudTask : BukkitRunnable() {
                     }
                 }
 
-                val locationUnder = location.clone().subtract(0.0, 1.0, 0.0)
+                val locationUnder = location.clone().subtract(0.0, 1.0, 0.0).block.location.clone()
 
                 SplatoonPlugin.projectileHitListener.safePaintInRadius(locationUnder, world, 0.7, team)
 
