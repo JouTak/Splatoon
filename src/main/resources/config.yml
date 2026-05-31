@@ -116,6 +116,7 @@ bacillus:
   cloud_check_period_ticks: 10
   infection_cooldown_ms: 2000
   glow_effect: true
+  paint_radius: 0.7
 
 movement:
   sneak_on_ink:
