@@ -916,7 +916,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             p.sendMessage(Component.text("§f• §eПКМ бомбочкой §7— взрыв краски"))
             p.sendMessage(
                 Component.text(
-                    "§f• §dБацилла §7 — §eударь игрока (ЛКМ), и он будет стрелять твоим цветом ${SplatoonSettings.bacillusDurationSeconds} секунд"
+                    "§f• §eПКМ бациллой §7— облако, которое заставит противников красить пол в твой цвет"
                 )
             )
             p.sendMessage(Component.text("§f• §aУдерживая shift на своей краске §7вы скрываетесь и лечитесь ❤"))
