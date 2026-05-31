@@ -50,12 +50,12 @@ class BacillusCloudTask : BukkitRunnable() {
 
                     if (recentlyInfected.containsKey(player.uniqueId)) {
                         recentlyInfected[player.uniqueId] = now
-                        game.applyAmmoOverride(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
+
                         continue
                     }
 
                     recentlyInfected[player.uniqueId] = now
-                    game.applyAmmoOverride(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
+
 
                     player.world.playSound(player.location, org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.8f, 1.2f)
 
