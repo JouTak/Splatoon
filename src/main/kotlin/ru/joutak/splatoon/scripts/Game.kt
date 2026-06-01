@@ -1005,13 +1005,9 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         // and Kotlin may infer TextComponent here, causing type mismatches on later assignments.
         var c: Component = Component.empty()
 
-        val base = commands[player.uniqueId]
-        val ov = ammoOverride[player.uniqueId]
-        if (base != null && ov != null && ov.first != base) {
-            val now = System.currentTimeMillis()
-            val leftMs = (ov.second - now).coerceAtLeast(0)
-            val leftSec = ceil(leftMs / 1000.0).toInt()
-            c = c.append(Component.text("☣ Bacillus ${leftSec}с", NamedTextColor.LIGHT_PURPLE))
+        val timeLeft = SplatoonPlugin.bacillusCloudTask.timesLeft[player.uniqueId]
+        if (timeLeft != null) {
+            c = c.append(Component.text("☣ Bacillus ${timeLeft}с", NamedTextColor.LIGHT_PURPLE))
             hasAny = true
         }
 

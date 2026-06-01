@@ -18,6 +18,7 @@ class BacillusCloudTask : BukkitRunnable() {
 
     private val recentlyInfected = mutableMapOf<UUID, Long>()
     val effectTasks = mutableMapOf<UUID, BukkitRunnable>()
+    val timesLeft = mutableMapOf<UUID, Long>()
 
     override fun run() {
         val worlds = Bukkit.getWorlds()
@@ -70,15 +71,6 @@ class BacillusCloudTask : BukkitRunnable() {
                 }
             }
         }
-
-        val iterator = recentlyInfected.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (now - entry.value > SplatoonSettings.bacillusDurationSeconds * 1000L) {
-                stopEffect(entry.key)
-                iterator.remove()
-            }
-        }
     }
 
     fun start() {
@@ -101,11 +93,19 @@ class BacillusCloudTask : BukkitRunnable() {
             private val maxTicks = durationSeconds * 20
 
             override fun run() {
-                if (ticks >= maxTicks || !player.isOnline || player.isDead) {
+                val lastInfected = recentlyInfected[player.uniqueId] ?: 0L
+
+                if (System.currentTimeMillis() - lastInfected < SplatoonSettings.bacillusCloudCheckPeriodTicks * 50L) {
+                    ticks = 0
+                } else if (ticks >= maxTicks || !player.isOnline || player.isDead) {
+                    recentlyInfected.remove(player.uniqueId)
+                    timesLeft.remove(player.uniqueId)
                     stopEffect(player.uniqueId)
                     this.cancel()
                     return
                 }
+
+                timesLeft[player.uniqueId] = (maxTicks - ticks).coerceAtLeast(0) / 20L
 
                 val location = player.location
                 val world = player.world
