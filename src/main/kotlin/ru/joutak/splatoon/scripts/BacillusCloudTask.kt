@@ -130,7 +130,7 @@ class BacillusCloudTask : BukkitRunnable() {
 
                 val locationUnder = location.clone().subtract(0.0, 1.0, 0.0).block.location.clone()
 
-                SplatoonPlugin.projectileHitListener.safePaintInRadius(locationUnder, world, SplatoonSettings.bacillusPaintRadius, team)
+                SplatoonPlugin.projectileHitListener.explosivePaint(SplatoonSettings.bacillusPaintRadius, locationUnder, world, GameManager.getGame(player)!!, player.uniqueId, team, null)
 
 //                world.spawnParticle(
 //                    Particle.DUST_COLOR_TRANSITION,
