@@ -17,7 +17,7 @@ import java.util.*
 class BacillusCloudTask : BukkitRunnable() {
 
     private val recentlyInfected = mutableMapOf<UUID, Long>()
-    private val effectTasks = mutableMapOf<UUID, BukkitRunnable>()
+    val effectTasks = mutableMapOf<UUID, BukkitRunnable>()
 
     override fun run() {
         val worlds = Bukkit.getWorlds()

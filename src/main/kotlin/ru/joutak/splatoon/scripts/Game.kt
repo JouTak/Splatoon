@@ -1823,7 +1823,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
             sb.entries.forEach { entry -> sb.resetScores(entry) }
 
-            var score = 15
+            var score = 16
             obj.getScore("§6▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬").score = score
             score--
 
@@ -1845,11 +1845,20 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             score--
 
             if (score <= 0) return@forEach
-            obj.getScore(formatAmmoLine(uuid)).score = score
+            obj.getScore("  ").score = score
             score--
 
             if (score <= 0) return@forEach
-            obj.getScore("  ").score = score
+            val infected = "§f§lЗаразен: " + if (SplatoonPlugin.bacillusCloudTask.effectTasks.containsKey(uuid)) {
+                "§d☣ Да"
+            } else {
+                "§7Нет"
+            }
+            obj.getScore(infected).score = score
+            score--
+
+            if (score <= 0) return@forEach
+            obj.getScore("   ").score = score
             score--
 
             if (score <= 0) return@forEach
