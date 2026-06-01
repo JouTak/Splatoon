@@ -184,6 +184,9 @@ object SplatoonSettings {
     var bacillusGlowEnabled: Boolean = true
         private set
 
+    var bacillusPaintRadius: Double = 0.7
+        private set
+
     var sneakOnInkEnabled: Boolean = true
         private set
 
@@ -413,6 +416,8 @@ object SplatoonSettings {
         bombPaintRadius = config.getDouble("weapons.bomb.paint_radius", 5.0)
         gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)
         bombKillPaintRadius = config.getDouble("weapons.bomb.kill_paint_radius", 5.0)
+
+        bacillusPaintRadius = config.getDouble("bacillus.paint_radius", 0.7)
 
         boostsEnabled = config.getBoolean("boosts.enabled", true)
         boostsMinIntervalSeconds = max(1, config.getInt("boosts.min_interval_seconds", 18))

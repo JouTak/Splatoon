@@ -9,8 +9,6 @@ import org.bukkit.Particle
 import org.bukkit.entity.AreaEffectCloud
 import org.bukkit.entity.Player
 import org.bukkit.scheduler.BukkitRunnable
-import org.bukkit.potion.PotionEffect
-import org.bukkit.potion.PotionEffectType
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SplatoonSettings
 import java.time.Duration
@@ -19,7 +17,7 @@ import java.util.*
 class BacillusCloudTask : BukkitRunnable() {
 
     private val recentlyInfected = mutableMapOf<UUID, Long>()
-    private val particleTasks = mutableMapOf<UUID, BukkitRunnable>()
+    private val effectTasks = mutableMapOf<UUID, BukkitRunnable>()
 
     override fun run() {
         val worlds = Bukkit.getWorlds()
@@ -50,25 +48,23 @@ class BacillusCloudTask : BukkitRunnable() {
 
                     if (recentlyInfected.containsKey(player.uniqueId)) {
                         recentlyInfected[player.uniqueId] = now
-                        game.applyAmmoOverride(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
+
                         continue
                     }
 
                     recentlyInfected[player.uniqueId] = now
-                    game.applyAmmoOverride(player.uniqueId, team, SplatoonSettings.bacillusDurationSeconds * 1000L)
+
 
                     player.world.playSound(player.location, org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.8f, 1.2f)
 
                     val title = Title.title(
                         Component.text("☣ ЗАРАЖЕНИЕ!", NamedTextColor.LIGHT_PURPLE),
-                        Component.text("Теперь вы красите цветом врага!", NamedTextColor.GRAY),
+                        Component.text("Теперь вы красите пол цветом врага!", NamedTextColor.GRAY),
                         Title.Times.times(Duration.ofMillis(150), Duration.ofMillis(1400), Duration.ofMillis(150))
                     )
                     player.showTitle(title)
 
-                    if (SplatoonSettings.bacillusGlowEnabled) {
-                        startParticleEffect(player, getTeamColor(team), SplatoonSettings.bacillusDurationSeconds)
-                    }
+                    startEffect(player, team, SplatoonSettings.bacillusDurationSeconds)
 
                     SplatoonPlugin.instance.logger.info("[Bacillus] Player ${player.name} infected by team $team")
                 }
@@ -79,7 +75,7 @@ class BacillusCloudTask : BukkitRunnable() {
         while (iterator.hasNext()) {
             val entry = iterator.next()
             if (now - entry.value > SplatoonSettings.bacillusDurationSeconds * 1000L) {
-                stopParticleEffect(entry.key)
+                stopEffect(entry.key)
                 iterator.remove()
             }
         }
@@ -92,19 +88,21 @@ class BacillusCloudTask : BukkitRunnable() {
 
     fun stop() {
         this.cancel()
-        particleTasks.values.forEach { it.cancel() }
-        particleTasks.clear()
+        effectTasks.values.forEach { it.cancel() }
+        effectTasks.clear()
         SplatoonPlugin.instance.logger.info("[Bacillus] Cloud task stopped")
     }
 
-    private fun startParticleEffect(player: Player, color: Color, durationSeconds: Int){
+    private fun startEffect(player: Player, team: Int, durationSeconds: Int){
+        val color = getTeamColor(team)
+
         val task = object : BukkitRunnable() {
             private var ticks = 0
             private val maxTicks = durationSeconds * 20
 
             override fun run() {
                 if (ticks >= maxTicks || !player.isOnline || player.isDead) {
-                    stopParticleEffect(player.uniqueId)
+                    stopEffect(player.uniqueId)
                     this.cancel()
                     return
                 }
@@ -112,22 +110,27 @@ class BacillusCloudTask : BukkitRunnable() {
                 val location = player.location
                 val world = player.world
 
+                if (SplatoonSettings.bacillusGlowEnabled) {
+                    for (i in 0 until 8) {
+                        val angle = (ticks * 0.5 + i * 45.0) * Math.PI / 180.0
+                        val radius = 0.8
+                        val xOffset = Math.cos(angle) * radius
+                        val zOffset = Math.sin(angle) * radius
+                        val yOffset = 0.5 + Math.sin(ticks * 0.3) * 0.3
 
-                for (i in 0 until 8) {
-                    val angle = (ticks * 0.5 + i * 45.0) * Math.PI / 180.0
-                    val radius = 0.8
-                    val xOffset = Math.cos(angle) * radius
-                    val zOffset = Math.sin(angle) * radius
-                    val yOffset = 0.5 + Math.sin(ticks * 0.3) * 0.3
-
-                    world.spawnParticle(
-                        Particle.DUST_COLOR_TRANSITION,
-                        location.clone().add(xOffset, yOffset, zOffset),
-                        1,
-                        0.0, 0.0, 0.0, 0.0,
-                        Particle.DustTransition(color, color, 0.8f)
-                    )
+                        world.spawnParticle(
+                            Particle.DUST_COLOR_TRANSITION,
+                            location.clone().add(xOffset, yOffset, zOffset),
+                            1,
+                            0.0, 0.0, 0.0, 0.0,
+                            Particle.DustTransition(color, color, 0.8f)
+                        )
+                    }
                 }
+
+                val locationUnder = location.clone().subtract(0.0, 1.0, 0.0).block.location.clone()
+
+                SplatoonPlugin.projectileHitListener.safePaintInRadius(locationUnder, world, SplatoonSettings.bacillusPaintRadius, team)
 
 //                world.spawnParticle(
 //                    Particle.DUST_COLOR_TRANSITION,
@@ -141,13 +144,13 @@ class BacillusCloudTask : BukkitRunnable() {
             }
         }
 
-        particleTasks[player.uniqueId] = task
+        effectTasks[player.uniqueId] = task
         task.runTaskTimer(SplatoonPlugin.instance, 0L, 2L)
     }
 
-    private fun stopParticleEffect(playerId: UUID) {
-        particleTasks[playerId]?.cancel()
-        particleTasks.remove(playerId)
+    private fun stopEffect(playerId: UUID) {
+        effectTasks[playerId]?.cancel()
+        effectTasks.remove(playerId)
     }
 
     private fun getTeamColor(team: Int): Color {
