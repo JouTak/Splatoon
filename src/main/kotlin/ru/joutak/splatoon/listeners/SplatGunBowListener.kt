@@ -66,8 +66,6 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         val pdc = meta.persistentDataContainer
         if (!pdc.has(gunKey, PersistentDataType.BOOLEAN)) return
 
-        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
-
         val game = GameManager.playerGame[player.uniqueId]
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(adminKey, PersistentDataType.BOOLEAN)
         val isInLobby = GameManager.isLobbyWorld(player.world)
