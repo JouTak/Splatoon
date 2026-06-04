@@ -223,7 +223,7 @@ object SplatoonSettings {
     var jumpPadEffectDuration: Int = 200
         private set
 
-    var jumpPadEffectDelay: Long = 5
+    var jumpPadEffectDelay: Long = 0
         private set
 
     var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"

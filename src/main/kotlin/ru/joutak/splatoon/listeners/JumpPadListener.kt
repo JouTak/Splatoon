@@ -5,6 +5,7 @@ import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerMoveEvent
+import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitRunnable
@@ -16,6 +17,8 @@ class JumpPadListener : Listener {
 
     private var jumpPadMaterial: Material? = null
     private val removalTasks = mutableMapOf<Player, BukkitRunnable>()
+    private val checkTasks = mutableMapOf<Player, BukkitRunnable>()
+    private val stopCheckTasks = mutableMapOf<Player, BukkitRunnable>()
 
     private fun getJumpPadMaterial(): Material? {
         val currentBlockType = SplatoonSettings.jumpPadBlockType
@@ -34,6 +37,7 @@ class JumpPadListener : Listener {
 
         if (player.world.name != game.worldName) return
 
+
         val jumpPadBlock = getJumpPadMaterial()
         val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
 
@@ -41,13 +45,59 @@ class JumpPadListener : Listener {
 
         if (isOnJumpPad) {
             cancelRemoval(player)
-            ensureJumpBoostActive(player)
+            giveInfiniteJumpBoost(player)
+            if (checkTasks[player] == null) {
+                startConstantCheck(player)
+            }
         }
         else {
+            if (checkTasks[player] != null && stopCheckTasks[player] == null) {
+                scheduleStopCheck(player)
+            }
+
             if (removalTasks[player] == null){
                 scheduleEffectRemoval(player)
             }
         }
+    }
+
+    private fun startConstantCheck(player: Player) {
+        val task = object : BukkitRunnable() {
+            override fun run() {
+                val game = GameManager.playerGame[player.uniqueId] ?: run {
+                    cancel()
+                    checkTasks.remove(player)
+                    return
+                }
+
+                val jumpPadBlock = getJumpPadMaterial()
+                val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
+                val isOnJumpPad = blockBelow.type == jumpPadBlock
+
+                plugin.logger.info("Check")
+
+                if (isOnJumpPad) {
+                    cancelRemoval(player)
+                    giveInfiniteJumpBoost(player)
+                }
+
+            }
+        }
+
+        checkTasks[player] = task
+        task.runTaskTimer(plugin, 0L, 2L)
+    }
+
+    private fun scheduleStopCheck(player: Player) {
+        val task = object : BukkitRunnable() {
+            override fun run() {
+                checkTasks[player]?.cancel()
+                checkTasks.remove(player)
+                stopCheckTasks.remove(player)
+            }
+        }
+        stopCheckTasks[player] = task
+        task.runTaskLater(plugin, 60L)
     }
 
     private fun scheduleEffectRemoval(player: Player) {
@@ -55,6 +105,7 @@ class JumpPadListener : Listener {
             override fun run() {
                 removeEffect(player, PotionEffectType.JUMP_BOOST)
                 removalTasks.remove(player)
+
             }
         }
 
@@ -67,26 +118,38 @@ class JumpPadListener : Listener {
         removalTasks.remove(player)
     }
 
-    private fun applyEffects(player: Player) {
-        player.addPotionEffect(PotionEffect(PotionEffectType.JUMP_BOOST, SplatoonSettings.jumpPadEffectDuration,
-            SplatoonSettings.jumpPadJumpAmplifier, false, false, true))
-    }
-
     private fun removeEffect(player: Player, potionEffectType: PotionEffectType) {
         player.removePotionEffect(potionEffectType)
     }
 
-    private fun ensureJumpBoostActive(player: Player) {
-        var needsUpdate = false
+    private fun giveInfiniteJumpBoost(player: Player) {
+        val currentEffect = player.getPotionEffect(PotionEffectType.JUMP_BOOST)
 
-        val jumpEffect = player.getPotionEffect(PotionEffectType.JUMP_BOOST)
-        if (jumpEffect == null || jumpEffect.duration < 40 || jumpEffect.amplifier != SplatoonSettings.jumpPadJumpAmplifier) {
-            needsUpdate = true
-        }
+        val needsUpdate = currentEffect == null ||
+                currentEffect.amplifier != SplatoonSettings.jumpPadJumpAmplifier ||
+                currentEffect.duration < 1000000
 
         if (needsUpdate) {
-            removeEffect(player, PotionEffectType.JUMP_BOOST)
-            applyEffects(player)
+            val infiniteDuration = Int.MAX_VALUE
+
+            player.addPotionEffect(
+                PotionEffect(
+                    PotionEffectType.JUMP_BOOST,
+                    infiniteDuration,
+                    SplatoonSettings.jumpPadJumpAmplifier,
+                    false,
+                    false,
+                    true)
+
+            )
         }
+    }
+
+    @EventHandler
+    fun onQuit(event: PlayerQuitEvent) {
+        checkTasks[event.player]?.cancel()
+        checkTasks.remove(event.player)
+        removalTasks[event.player]?.cancel()
+        removalTasks.remove(event.player)
     }
 }
