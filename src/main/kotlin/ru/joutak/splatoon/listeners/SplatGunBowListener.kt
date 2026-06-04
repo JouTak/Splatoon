@@ -94,6 +94,7 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
     // Ванильный выстрел арбалетом полностью отменяем (мы спавним свои snowball).
     @EventHandler(ignoreCancelled = false, priority = EventPriority.HIGHEST)
     fun onShoot(event: EntityShootBowEvent) {
+
         val item = event.bow ?: return
         if (item.type != Material.CROSSBOW) return
 
@@ -118,6 +119,8 @@ class SplatGunBowListener(private val plugin: Plugin) : Listener {
         paintTeam: Int,
         now: Long
     ) {
+        if (player.hasPotionEffect(PotionEffectType.INVISIBILITY)) return
+
         val next = nextShotAtMs[player.uniqueId] ?: 0L
         if (now < next) return
         nextShotAtMs[player.uniqueId] = now + clickCooldownMs
