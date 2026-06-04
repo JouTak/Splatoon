@@ -7,12 +7,15 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerMoveEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
+import org.bukkit.scheduler.BukkitRunnable
+import ru.joutak.minigames.MiniGamesAPI.plugin
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
 
 class JumpPadListener : Listener {
 
     private var jumpPadMaterial: Material? = null
+    private val removalTasks = mutableMapOf<Player, BukkitRunnable>()
 
     private fun getJumpPadMaterial(): Material? {
         val currentBlockType = SplatoonSettings.jumpPadBlockType
@@ -37,12 +40,31 @@ class JumpPadListener : Listener {
         val isOnJumpPad = blockBelow.type == jumpPadBlock
 
         if (isOnJumpPad) {
+            cancelRemoval(player)
             ensureJumpBoostActive(player)
         }
         else {
-            removeEffect(player, PotionEffectType.JUMP_BOOST)
+            if (removalTasks[player] == null){
+                scheduleEffectRemoval(player)
+            }
+        }
+    }
+
+    private fun scheduleEffectRemoval(player: Player) {
+        val task = object: BukkitRunnable() {
+            override fun run() {
+                removeEffect(player, PotionEffectType.JUMP_BOOST)
+                removalTasks.remove(player)
+            }
         }
 
+        removalTasks[player] = task
+        task.runTaskLater(plugin, SplatoonSettings.jumpPadEffectDelay)
+    }
+
+    private fun cancelRemoval(player: Player) {
+        removalTasks[player]?.cancel()
+        removalTasks.remove(player)
     }
 
     private fun applyEffects(player: Player) {
