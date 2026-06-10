@@ -288,7 +288,7 @@ class ProjectileHitListener : Listener {
         }
     }
 
-    private fun explosivePaint(
+    fun explosivePaint(
         r: Double,
         location: org.bukkit.Location,
         world: World,

@@ -184,6 +184,9 @@ object SplatoonSettings {
     var bacillusGlowEnabled: Boolean = true
         private set
 
+    var bacillusPaintRadius: Double = 0.7
+        private set
+
     var sneakOnInkEnabled: Boolean = true
         private set
 
@@ -221,6 +224,9 @@ object SplatoonSettings {
         private set
 
     var jumpPadEffectDuration: Int = 200
+        private set
+
+    var jumpPadEffectDelay: Long = 0
         private set
 
     var jumpPadBlockType: String = "LIME_CONCRETE_POWDER"
@@ -414,6 +420,8 @@ object SplatoonSettings {
         gunKillPaintRadius = config.getDouble("weapons.gun.kill_paint_radius", 3.0)
         bombKillPaintRadius = config.getDouble("weapons.bomb.kill_paint_radius", 5.0)
 
+        bacillusPaintRadius = config.getDouble("bacillus.paint_radius", 0.7)
+
         boostsEnabled = config.getBoolean("boosts.enabled", true)
         boostsMinIntervalSeconds = max(1, config.getInt("boosts.min_interval_seconds", 18))
         boostsMaxIntervalSeconds = max(boostsMinIntervalSeconds, config.getInt("boosts.max_interval_seconds", 39))
@@ -538,6 +546,7 @@ object SplatoonSettings {
         speedupOnIceAmplifier = config.getInt("movement.speedup_on_ice.amplifier", 2).coerceIn(0, 255)
         jumpPadJumpAmplifier = config.getInt("movement.jump_pads.jump_amplifier", 5).coerceIn(0, 255)
         jumpPadEffectDuration = config.getInt("movement.jump_pads.effect_duration", 200)
+        jumpPadEffectDelay = config.getLong("movement.jump_pads.effect_delay", 5)
         jumpPadBlockType = config.getString("movement.jump_pads.jump_pad_block_type", "LIME_CONCRETE_POWDER") ?: "LIME_CONCRETE_POWDER"
 
 
