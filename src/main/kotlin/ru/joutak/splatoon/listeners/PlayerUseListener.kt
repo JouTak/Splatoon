@@ -41,19 +41,6 @@ class PlayerUseListener(private val plugin: Plugin) : Listener {
         val meta = itemInHand.itemMeta ?: return
         val pdc = meta.persistentDataContainer
 
-        if (pdc.has(NamespacedKey(SplatoonPlugin.instance, "skinChanger"))) {
-            val skins = SplatoonSettings.getSkins()
-
-            if (skins == null) {
-                player.sendMessage("§cСкины отсутствуют")
-                return
-            }
-
-            player.openInventory(skins)
-
-            return
-        }
-
         val game = GameManager.playerGame[player.uniqueId]
 
         val isAdminUse = game == null && player.hasPermission("splatoon.admin") && pdc.has(

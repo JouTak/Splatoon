@@ -99,7 +99,7 @@ class SplatoonCommand(private val plugin: SplatoonPlugin) : CommandExecutor, Tab
                     return true
                 }
 
-                val skins = SplatoonSettings.getSkins()
+                val skins = SplatoonSettings.getSkins(sender.uniqueId)
 
                 if (skins == null) {
                     sender.sendMessage("§cСкины отсутствуют")
