@@ -882,6 +882,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
 
             countdownLeft = countdown - 1
         }, 0L, 20L)
+
     }
 
     private fun doCountdownStartNow(world: World) {
