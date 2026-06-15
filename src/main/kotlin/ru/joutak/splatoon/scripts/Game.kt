@@ -477,7 +477,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             player.foodLevel = 20
             player.saturation = 20f
             player.fireTicks = 0
-            player.health = player.maxHealth
+            restoreVanillaHealth(player)
 
             player.teleport(lobbyLoc)
         }
@@ -733,7 +733,7 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         player.foodLevel = 20
         player.saturation = 20f
         player.fireTicks = 0
-        player.health = player.maxHealth
+        restoreVanillaHealth(player)
         player.gameMode = GameMode.ADVENTURE
         player.isGliding = false
 

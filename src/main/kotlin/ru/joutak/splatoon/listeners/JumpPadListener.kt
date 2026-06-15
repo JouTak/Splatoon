@@ -76,8 +76,6 @@ class JumpPadListener : Listener {
 //                val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
 //                val isOnJumpPad = blockBelow.type == jumpPadBlock
                 val isOnJumpPad = isPlayerStandingOn(player, jumpPadBlock)
-                if (isOnJumpPad == null)
-                    plugin.logger.info("BlockType == null!!!!")
 
                 plugin.logger.info("Check")
 

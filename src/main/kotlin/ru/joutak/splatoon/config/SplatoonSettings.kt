@@ -7,10 +7,14 @@ import org.bukkit.Bukkit
 import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.configuration.file.YamlConfiguration
+import org.bukkit.enchantments.Enchantment
 import org.bukkit.inventory.Inventory
+import org.bukkit.inventory.ItemFlag
 import org.bukkit.inventory.ItemStack
 import org.bukkit.persistence.PersistentDataType
 import ru.joutak.splatoon.SplatoonPlugin
+import ru.joutak.splatoon.scripts.GameManager
+import java.util.UUID
 import java.util.logging.Logger
 import kotlin.math.ceil
 import kotlin.math.max
@@ -572,16 +576,42 @@ object SplatoonSettings {
         }
     }
 
-    fun getSkins(): Inventory? {
+    fun getSkins(uniqueId: UUID): Inventory? {
         if (skinsInventory == null) return null
 
         val copy = Bukkit.createInventory(null, skinsInventory!!.size, "Установить скин")
 
-        skinsInventory!!.contents.forEachIndexed { i, item ->
-            copy.setItem(i, item?.clone())
-        }
+        val id = GameManager.getSkin(uniqueId)
+
+        updateSkinsGui(copy, id)
 
         return copy
+    }
+
+    fun updateSkinsGui(inventory: Inventory, id: Int) {
+        skinsInventory!!.contents.forEachIndexed { i, item ->
+            val cItem = item?.clone()
+
+            if (cItem != null) {
+                val cMeta = cItem.itemMeta
+
+                if (cMeta != null) {
+                    if (cMeta.hasCustomModelData()) {
+                        if (cMeta.customModelData == id) {
+                            cMeta.addEnchant(Enchantment.FORTUNE, 1, true)
+
+                            cMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS)
+
+                            cMeta.lore(listOf(Component.text("✓ Выбран").color(NamedTextColor.GREEN)))
+                        }
+                    }
+
+                    cItem.itemMeta = cMeta
+                }
+
+                inventory.setItem(i, cItem)
+            }
+        }
     }
 
     private fun parseIntCoord3(item: Any?): Triple<Int, Int, Int>? {
