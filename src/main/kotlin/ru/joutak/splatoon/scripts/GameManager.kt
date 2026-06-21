@@ -1,11 +1,17 @@
 package ru.joutak.splatoon.scripts
 
-import com.onarandombox.MultiverseCore.MultiverseCore
 import org.bukkit.*
 import org.bukkit.Bukkit.getWorld
 import org.bukkit.attribute.Attribute
 import org.bukkit.entity.Player
 import org.bukkit.potion.PotionEffectType
+import org.mvplugins.multiverse.core.MultiverseCore
+import org.mvplugins.multiverse.core.MultiverseCoreApi
+import org.mvplugins.multiverse.core.world.AllowedPortalType
+import org.mvplugins.multiverse.core.world.MultiverseWorld
+import org.mvplugins.multiverse.core.world.options.CloneWorldOptions
+import org.mvplugins.multiverse.core.world.options.CreateWorldOptions
+import org.mvplugins.multiverse.core.world.options.DeleteWorldOptions
 import ru.joutak.minigames.MiniGamesAPI
 import ru.joutak.minigames.domain.GameInstance
 import ru.joutak.minigames.managers.MatchmakingManager
@@ -81,32 +87,40 @@ object GameManager {
     }
 
     fun cloneWorldFromTemplate(templateWorldName: String): World? {
+        val coreApi = MultiverseCoreApi.get();
+        val worldManager = coreApi.worldManager
+
         val multiverseCore = Bukkit.getPluginManager().getPlugin("Multiverse-Core") as? MultiverseCore ?: return null
         val template = Bukkit.getWorld(templateWorldName) ?: run {
             SplatoonPlugin.instance.logger.warning("Template world $templateWorldName is not loaded; can't clone ceremony.")
             return null
         }
 
-        val mvTemplate = multiverseCore.mvWorldManager.getMVWorld(template.name) ?: run {
-            SplatoonPlugin.instance.logger.warning("Template world $templateWorldName is not registered in Multiverse; can't clone ceremony.")
+        val mvTemplateOption = worldManager.getWorld(template.name) ?: run {
+            SplatoonPlugin.instance.logger.warning("\"Template world \$templateWorldName is not registered in Multiverse; can't clone ceremony.\"")
             return null
         }
 
         val worldName = nextWorldName(templateWorldName)
         cleanupWorld(worldName)
 
+
         try {
-            multiverseCore.mvWorldManager.cloneWorld(template.name, worldName)
-            if (multiverseCore.mvWorldManager.getMVWorld(worldName) == null) {
-                multiverseCore.mvWorldManager.addWorld(
-                    worldName,
-                    mvTemplate.environment,
-                    null,
-                    mvTemplate.worldType,
-                    true,
-                    mvTemplate.generator
-                )
+            val cloneOptions = CloneWorldOptions.fromTo(mvTemplateOption.get(), worldName)
+                .keepWorldConfig(true)
+                .keepGameRule(false)
+                .keepWorldBorder(true)
+                .saveBukkitWorld(true)
+
+            val result = worldManager.cloneWorld(cloneOptions)
+
+            result.onSuccess { newWorld ->
+                SplatoonPlugin.instance.logger.info("World cloned successfully: ${newWorld.name}")
+            }.onFailure { failure ->
+                SplatoonPlugin.instance.logger.severe("World clone failed")
+                cleanupWorld(worldName)
             }
+//
         } catch (e: Exception) {
             SplatoonPlugin.instance.logger.severe("World clone $worldName failed")
             e.printStackTrace()
@@ -120,12 +134,14 @@ object GameManager {
             return null
         }
 
-        val mvWorld = multiverseCore.mvWorldManager.getMVWorld(worldName)
-        if (mvWorld != null) {
-            // Keep this compatible with older Multiverse versions: only use the stable APIs.
-            runCatching { mvWorld.setTime("day") }
-            runCatching { mvWorld.setEnableWeather(false) }
+        val mvWorldOption = worldManager.getWorld(worldName)
+        if (mvWorldOption != null) {
+            val mvWorld = mvWorldOption.get()
+
+            runCatching { mvWorld.setAllowWeather(false) }
+            runCatching { mvWorld.setPvp(false) }
         }
+
 
         // Ceremony worlds should be safe even if template had different settings.
         runCatching { world.pvp = false }
@@ -272,6 +288,9 @@ object GameManager {
             return
         }
 
+        val coreApi = MultiverseCoreApi.get();
+        val worldManager = coreApi.worldManager
+
         val baseArenaId = (instance.config.meta["arenaId"] as? String) ?: instance.config.id
         val arenaSettings = SplatoonSettings.arenasById[baseArenaId]
 
@@ -285,24 +304,49 @@ object GameManager {
             return
         }
 
-        val mvWorld = multiverseCore.mvWorldManager.getMVWorld(template.name)
-        if (mvWorld != null) {
-            mvWorld.setTime("day")
-            mvWorld.setEnableWeather(false)
+        val mvTemplateOption = worldManager.getWorld(template.name)
+        if (mvTemplateOption != null) {
+            val mvWorld = mvTemplateOption.get()
+            mvWorld.setAllowWeather(false)
             mvWorld.setDifficulty(Difficulty.PEACEFUL)
-            mvWorld.setPVPMode(false)
-            mvWorld.gameMode = GameMode.ADVENTURE
-            mvWorld.hunger = true
-            mvWorld.setAllowAnimalSpawn(false)
-            mvWorld.setAllowMonsterSpawn(false)
-            disablePortalMakingCompat(mvWorld)
+            mvWorld.setPvp(false)
+            mvWorld.setGameMode(GameMode.ADVENTURE)
+            mvWorld.setHunger(true)
+            mvWorld.setPortalForm(AllowedPortalType.NONE)
+
+            try {
+                val setTimeMethod = mvWorld.javaClass.getMethod("setTime", Long::class.java)
+                setTimeMethod.invoke(mvWorld, 1000L)
+            } catch (_: Exception) {
+
+            }
+
         }
 
         val worldName = nextWorldName(templateWorldName)
         cleanupWorld(worldName)
 
         try {
-            multiverseCore.mvWorldManager.cloneWorld(template.name, worldName)
+            val mvTemplate = worldManager.getWorld(template.name)
+            if (mvTemplate == null) {
+                SplatoonPlugin.instance.logger.severe("Template world not found after import")
+                return
+            }
+
+            val cloneOptions = CloneWorldOptions.fromTo(mvTemplate.get(), worldName)
+                .keepWorldConfig(true)
+                .keepGameRule(false)
+                .keepWorldBorder(true)
+                .saveBukkitWorld(true)
+
+            val cloneResult = worldManager.cloneWorld(cloneOptions)
+
+            cloneResult.onSuccess { newWorld ->
+                SplatoonPlugin.instance.logger.info("World cloned successfully: ${newWorld.name}")
+            }.onFailure { failure ->
+                SplatoonPlugin.instance.logger.severe("Не удалось клонировать мир")
+                cleanupWorld(worldName)
+            }
         } catch (e: Exception) {
             SplatoonPlugin.instance.logger.severe("Не удалось клонировать мир $templateWorldName -> $worldName: ${e.message}")
             cleanupWorld(worldName)
@@ -385,7 +429,14 @@ object GameManager {
         val multiverseCore = Bukkit.getPluginManager().getPlugin("Multiverse-Core") as? MultiverseCore
         if (multiverseCore != null) {
             try {
-                multiverseCore.mvWorldManager.deleteWorld(worldName)
+                val coreApi = MultiverseCoreApi.get();
+                val worldManager = coreApi.worldManager
+
+                val mvWorldOption = worldManager.getWorld(worldName)
+                if (mvWorldOption != null) {
+                    val deleteOptions = DeleteWorldOptions.world(mvWorldOption.get())
+                    worldManager.deleteWorld(deleteOptions)
+                }
             } catch (_: Exception) {
             }
         }
