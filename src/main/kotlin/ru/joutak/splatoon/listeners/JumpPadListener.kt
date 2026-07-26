@@ -9,6 +9,7 @@ import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.potion.PotionEffect
 import org.bukkit.potion.PotionEffectType
 import org.bukkit.scheduler.BukkitRunnable
+import org.bukkit.util.BoundingBox
 import ru.joutak.minigames.MiniGamesAPI.plugin
 import ru.joutak.splatoon.config.SplatoonSettings
 import ru.joutak.splatoon.scripts.GameManager
@@ -39,9 +40,10 @@ class JumpPadListener : Listener {
 
 
         val jumpPadBlock = getJumpPadMaterial()
-        val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
-
-        val isOnJumpPad = blockBelow.type == jumpPadBlock
+//        val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
+//
+//        val isOnJumpPad = blockBelow.type == jumpPadBlock
+        val isOnJumpPad = isPlayerStandingOn(player, jumpPadBlock)
 
         if (isOnJumpPad) {
             cancelRemoval(player)
@@ -71,8 +73,9 @@ class JumpPadListener : Listener {
                 }
 
                 val jumpPadBlock = getJumpPadMaterial()
-                val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
-                val isOnJumpPad = blockBelow.type == jumpPadBlock
+//                val blockBelow = player.location.clone().subtract(0.0, 0.5, 0.0).block
+//                val isOnJumpPad = blockBelow.type == jumpPadBlock
+                val isOnJumpPad = isPlayerStandingOn(player, jumpPadBlock)
 
                 plugin.logger.info("Check")
 
@@ -142,6 +145,23 @@ class JumpPadListener : Listener {
                     true)
 
             )
+        }
+    }
+
+    private fun isPlayerStandingOn(player: Player, targetType: Material?): Boolean {
+        val box: BoundingBox = player.boundingBox
+
+        val y = box.minY - 0.1
+        val offset = 0.2
+
+        val corners = listOf(
+            Pair(box.minX, box.minZ),
+            Pair(box.maxX, box.minZ),
+            Pair(box.minX, box.maxZ),
+            Pair(box.maxX, box.maxZ)
+        )
+        return corners.any { (x, z) ->
+            player.world.getBlockAt(x.toInt(), y.toInt(), z.toInt()).type == targetType
         }
     }
 
