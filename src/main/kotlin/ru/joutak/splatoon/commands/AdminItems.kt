@@ -6,7 +6,9 @@ import org.bukkit.Material
 import org.bukkit.NamespacedKey
 import org.bukkit.inventory.ItemStack
 import org.bukkit.inventory.meta.CrossbowMeta
+import org.bukkit.inventory.meta.PotionMeta
 import org.bukkit.persistence.PersistentDataType
+import org.bukkit.potion.PotionType
 import ru.joutak.splatoon.SplatoonPlugin
 import ru.joutak.splatoon.config.SplatoonSettings
 
@@ -49,10 +51,11 @@ object AdminItems {
 
     fun bacillus(team: Int = 0): ItemStack {
         val item = ItemStack(Material.LINGERING_POTION, 1)
-        val meta = item.itemMeta
+        val meta = item.itemMeta as PotionMeta
         val plugin = SplatoonPlugin.instance
 
         meta.displayName(Component.text("Бацилла").color(TextColor.color(0xFF55FF)))
+        meta.basePotionType = PotionType.INVISIBILITY
         meta.persistentDataContainer.set(NamespacedKey(plugin, "Bacillus"), PersistentDataType.BOOLEAN, true)
         markAdmin(meta.persistentDataContainer, team)
 
