@@ -538,8 +538,14 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
         )
 
         val out = mutableMapOf<Int, Int>()
+        var previousRaw: Int? = null
+        var previousPlace = 0
         ordered.forEachIndexed { idx, teamId ->
-            out[teamId] = idx + 1
+            val rawPlace = raw[teamId]
+            val place = if (previousRaw != null && rawPlace == previousRaw) previousPlace else idx + 1
+            out[teamId] = place
+            previousRaw = rawPlace
+            previousPlace = place
         }
         return out
     }
@@ -1694,10 +1700,14 @@ class Game(var worldName: String, val arenaId: String, private val spawns: List<
             .sortedWith(compareByDescending<Int> { scoreByTeam[it] ?: 0.0 }.thenBy { it })
 
         val placementByTeam = mutableMapOf<Int, Int>()
-        var place = 1
-        sorted.forEach { t ->
-            placementByTeam[t] = place
-            place++
+        var previousScore: Double? = null
+        var previousPlace = 0
+        sorted.forEachIndexed { index, team ->
+            val score = scoreByTeam[team] ?: 0.0
+            val place = if (previousScore != null && score.compareTo(previousScore!!) == 0) previousPlace else index + 1
+            placementByTeam[team] = place
+            previousScore = score
+            previousPlace = place
         }
         return placementByTeam
     }
